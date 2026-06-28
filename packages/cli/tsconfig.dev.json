@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@project-safety/core": ["../../packages/core/src/index.ts"]
+      "@codeeq/core": ["../../packages/core/src/index.ts"]
     }
   },
   "include": ["src/**/*", "../../packages/core/src/**/*"],

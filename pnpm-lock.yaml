@@ -14,7 +14,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@project-safety/core':
+      '@codeeq/core':
         specifier: workspace:*
         version: link:../core
       commander:

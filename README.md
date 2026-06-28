@@ -1,6 +1,6 @@
-# 🛡️ project-safety-layer
+# 🛡️ CodeEq
 
-> **Version 0.1** — Local-first project health scanner for vibe coders.
+> **Version 0.1** — A local-first safety scanner for AI-built apps.
 
 Scan any local web project and get an instant health report: detected framework, package manager, env file safety, Supabase key leaks, and more. No cloud calls. No data leaves your machine.
 
@@ -11,7 +11,8 @@ Scan any local web project and get an instant health report: detected framework,
 | Category | What it detects |
 |----------|----------------|
 | **Project Info** | Name, framework, language, package manager |
-| **File Presence** | `src/`, `app/`, `pages/`, `.env`, `.env.local`, `.env.example`, `.gitignore`, `vercel.json` |
+| **File Presence** | `src/`, `app/`, `src/app/`, `pages/`, `src/pages/`, `.env`, `.env.local`, `.env.example`, `.gitignore`, `vercel.json` |
+| **Router Detection** | App Router (`app/` or `src/app/`) and Pages Router (`pages/` or `src/pages/`) |
 | **Env Safety** | `.env` / `.env.local` not in `.gitignore` |
 | **Secret Leaks** | Supabase `service_role` key in source files |
 | **NEXT_PUBLIC_** | Variables whose names look like private secrets |
@@ -24,8 +25,8 @@ Scan any local web project and get an instant health report: detected framework,
 
 ```
 packages/
-├── core/          @project-safety/core — all scanner + report logic
-└── cli/           project-safety-cli   — Commander CLI wrapper
+├── core/          @codeeq/core   — all scanner + report logic
+└── cli/           codeeq         — Commander CLI wrapper
 ```
 
 ---
@@ -41,7 +42,7 @@ packages/
 
 ```bash
 # Clone the repo and enter it
-cd project-safety-layer
+cd CodeEq
 
 # Install all workspace dependencies
 pnpm install
@@ -58,11 +59,11 @@ pnpm build
 
 ```bash
 # Scan the current working directory
-pnpm --filter project-safety-cli dev scan
+pnpm --filter codeeq dev scan
 
 # Scan a specific project
-pnpm --filter project-safety-cli dev scan /path/to/your/project
-pnpm --filter project-safety-cli dev scan ../my-nextjs-app
+pnpm --filter codeeq dev scan /path/to/your/project
+pnpm --filter codeeq dev scan ../my-nextjs-app
 ```
 
 ### After building
@@ -74,7 +75,7 @@ node packages/cli/dist/index.js scan /path/to/project
 # Or link globally
 cd packages/cli
 npm link
-project-safety scan /path/to/project
+codeeq scan /path/to/project
 ```
 
 ---
@@ -85,7 +86,7 @@ project-safety scan /path/to/project
 
 ```
 ┌─────────────────────────────────────────────┐
-│  🛡️  project-safety scan results             │
+│  🛡️  codeeq scan results                    │
 ├─────────────────────────────────────────────┤
 │  Project:   my-nextjs-app                   │
 │  Framework: Next.js                         │
@@ -131,7 +132,7 @@ A `PROJECT_HEALTH_REPORT.md` file is written to the scanned project's root direc
 pnpm test
 
 # Run tests for core package only
-pnpm --filter @project-safety/core test
+pnpm --filter @codeeq/core test
 ```
 
 ---

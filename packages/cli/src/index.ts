@@ -3,8 +3,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
-import { scanProject, generateMarkdownReport } from '@project-safety/core';
-import type { ScanResult, Severity } from '@project-safety/core';
+import { scanProject, generateMarkdownReport } from '@codeeq/core';
+import type { ScanResult, Severity } from '@codeeq/core';
 
 // ─── Version ──────────────────────────────────────────────────────────────────
 
@@ -87,8 +87,8 @@ function printSummary(result: ScanResult): void {
   const top     = `┌${'─'.repeat(W)}┐`;
   const bottom  = `└${'─'.repeat(W)}┘`;
 
-  const titleStr = '  🛡️  project-safety scan results';
-  const titlePad = ' '.repeat(Math.max(0, W - '  🛡️  project-safety scan results'.length));
+  const titleStr = '  🛡️  codeeq scan results';
+  const titlePad = ' '.repeat(Math.max(0, W - '  🛡️  codeeq scan results'.length));
 
   console.log('');
   console.log(`${c.cyan}${top}${c.reset}`);
@@ -127,7 +127,7 @@ function printSummary(result: ScanResult): void {
 async function runScan(directory: string): Promise<void> {
   const targetDir = path.resolve(directory);
 
-  console.log(`\n${c.cyan}${c.bold}project-safety${c.reset} ${c.dim}v${VERSION}${c.reset}`);
+  console.log(`\n${c.cyan}${c.bold}codeeq${c.reset} ${c.dim}v${VERSION}${c.reset}`);
   console.log(`${c.dim}Scanning: ${targetDir}${c.reset}\n`);
 
   let result: ScanResult;
@@ -164,7 +164,7 @@ async function runScan(directory: string): Promise<void> {
 const program = new Command();
 
 program
-  .name('project-safety')
+  .name('codeeq')
   .description('Local-first project health scanner for vibe coders')
   .version(VERSION, '-v, --version', 'Output the current version');
 

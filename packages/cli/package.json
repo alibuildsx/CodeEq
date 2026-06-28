@@ -1,17 +1,17 @@
 {
-  "name": "project-safety-cli",
+  "name": "codeeq",
   "version": "0.1.0",
-  "description": "CLI for project-safety-layer — scan your web project and generate a health report",
+  "description": "A local-first safety scanner for AI-built apps.",
   "main": "./dist/index.js",
   "bin": {
-    "project-safety": "./dist/index.js"
+    "codeeq": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx --tsconfig tsconfig.dev.json src/index.ts"
   },
   "dependencies": {
-    "@project-safety/core": "workspace:*",
+    "@codeeq/core": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {

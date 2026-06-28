@@ -1,4 +1,4 @@
-// Public API for @project-safety/core
+// Public API for @codeeq/core
 
 export { scanProject } from './scanners/projectScanner.js';
 export { generateMarkdownReport } from './reports/markdownReport.js';

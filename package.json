@@ -1,5 +1,5 @@
 {
-  "name": "project-safety-layer",
+  "name": "codeeq-monorepo",
   "version": "0.1.0",
   "private": true,
   "description": "Local-first CLI tool for vibe coders — scans a web project and generates a health report",

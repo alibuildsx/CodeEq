@@ -1,7 +1,7 @@
 {
-  "name": "@project-safety/core",
+  "name": "@codeeq/core",
   "version": "0.1.0",
-  "description": "Core scanner logic for project-safety-layer",
+  "description": "Core scanner logic for CodeEq",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
