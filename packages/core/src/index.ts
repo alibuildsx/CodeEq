@@ -17,6 +17,6 @@ export type {
 // Detectors (exported for testing and future extension)
 export { readPackageJson, mergeDependencies, detectPackageManager } from './detectors/packageJson.js';
 export { detectFramework, hasNextConfig } from './detectors/framework.js';
-export { detectFilePresence } from './detectors/filePresence.js';
+export { detectFilePresence, type FilePresenceResult } from './detectors/filePresence.js';
 export { detectSupabase } from './detectors/supabase.js';
 export { detectEnvSafety } from './detectors/envSafety.js';

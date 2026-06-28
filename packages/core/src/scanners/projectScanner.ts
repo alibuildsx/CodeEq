@@ -160,7 +160,16 @@ export async function scanProject(targetDir: string): Promise<ScanResult> {
     language,
     scripts,
     dependencies: deps,
-    ...presence,
+    hasSrcFolder: presence.hasSrcFolder,
+    appRouterPath: presence.appRouterPath,
+    pagesRouterPath: presence.pagesRouterPath,
+    hasAppRouter: presence.hasAppRouter,
+    hasPagesRouter: presence.hasPagesRouter,
+    hasEnv: presence.hasEnv,
+    hasEnvLocal: presence.hasEnvLocal,
+    hasEnvExample: presence.hasEnvExample,
+    hasGitignore: presence.hasGitignore,
+    hasVercelJson: presence.hasVercelJson,
     usesSupabase: supabase.usesSupabase,
   };
 

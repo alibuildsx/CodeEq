@@ -37,8 +37,12 @@ export interface ProjectInfo {
   dependencies: Record<string, string>;
   // ── File / folder presence ──
   hasSrcFolder: boolean;
-  hasAppFolder: boolean;
-  hasPagesFolder: boolean;
+  /** Relative path of app router folder found ("app" | "src/app"), null if absent */
+  appRouterPath: string | null;
+  /** Relative path of pages router folder found ("pages" | "src/pages"), null if absent */
+  pagesRouterPath: string | null;
+  hasAppRouter: boolean;
+  hasPagesRouter: boolean;
   hasEnv: boolean;
   hasEnvLocal: boolean;
   hasEnvExample: boolean;

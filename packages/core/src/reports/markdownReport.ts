@@ -68,8 +68,8 @@ export function generateMarkdownReport(result: ScanResult): string {
   lines.push(`| **Package Manager** | ${info.packageManager} |`);
   lines.push(`| **Supabase** | ${info.usesSupabase ? '✅ Yes' : '❌ No'} |`);
   lines.push(`| **src/ folder** | ${info.hasSrcFolder ? '✅' : '❌'} |`);
-  lines.push(`| **app/ folder** | ${info.hasAppFolder ? '✅' : '❌'} |`);
-  lines.push(`| **pages/ folder** | ${info.hasPagesFolder ? '✅' : '❌'} |`);
+  lines.push(`| **App Router** | ${info.appRouterPath ? `✅ Yes (\`${info.appRouterPath}/\`)` : '❌ No'} |`);
+  lines.push(`| **Pages Router** | ${info.pagesRouterPath ? `✅ Yes (\`${info.pagesRouterPath}/\`)` : '❌ No'} |`);
   lines.push(`| **.env** | ${info.hasEnv ? '✅' : '❌'} |`);
   lines.push(`| **.env.local** | ${info.hasEnvLocal ? '✅' : '❌'} |`);
   lines.push(`| **.env.example** | ${info.hasEnvExample ? '✅' : '❌'} |`);
