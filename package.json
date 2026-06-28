@@ -1,0 +1,19 @@
+{
+  "name": "project-safety-layer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first CLI tool for vibe coders — scans a web project and generates a health report",
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm -r run dev",
+    "test": "pnpm -r run test",
+    "clean": "pnpm -r exec rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

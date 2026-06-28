@@ -1,0 +1,22 @@
+{
+  "name": "project-safety-cli",
+  "version": "0.1.0",
+  "description": "CLI for project-safety-layer — scan your web project and generate a health report",
+  "main": "./dist/index.js",
+  "bin": {
+    "project-safety": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx --tsconfig tsconfig.dev.json src/index.ts"
+  },
+  "dependencies": {
+    "@project-safety/core": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}
