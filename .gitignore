@@ -6,3 +6,11 @@ dist/
 .env
 .env.local
 *.log
+
+# Local pnpm store
+.pnpm-store/
+
+# Generated CodeEq reports
+PROJECT_HEALTH_REPORT.md
+CODEEQ_REPORT.md
+packages/cli/PROJECT_HEALTH_REPORT.md

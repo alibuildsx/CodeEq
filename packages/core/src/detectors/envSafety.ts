@@ -68,7 +68,8 @@ function extractEnvKeys(lines: string[]): string[] {
   return lines
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && !l.startsWith('#') && l.includes('='))
-    .map((l) => l.split('=')[0]!.trim());
+    .map((l) => l.split('=')[0]!.trim().replace(/^export\s+/, ''))
+    .filter((key) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key));
 }
 
 // ─── Detector result ──────────────────────────────────────────────────────────
@@ -80,6 +81,8 @@ export interface EnvSafetyResult {
   envLocalNotGitignored: boolean;
   /** NEXT_PUBLIC_ vars whose names look like private secrets */
   suspiciousNextPublicVars: string[];
+  /** Variable names used by env files but absent from .env.example */
+  missingEnvExampleVars: string[];
 }
 
 // ─── Main detector ────────────────────────────────────────────────────────────
@@ -129,5 +132,29 @@ export async function detectEnvSafety(
     }
   }
 
-  return { envNotGitignored, envLocalNotGitignored, suspiciousNextPublicVars };
+  let missingEnvExampleVars: string[] = [];
+  try {
+    await fs.access(path.join(targetDir, '.env.example'));
+    const requiredKeys = new Set<string>();
+    for (const envFile of ['.env', '.env.local']) {
+      const keys = extractEnvKeys(await readLines(path.join(targetDir, envFile)));
+      keys.forEach((key) => requiredKeys.add(key));
+    }
+
+    const exampleKeys = new Set(
+      extractEnvKeys(await readLines(path.join(targetDir, '.env.example'))),
+    );
+    missingEnvExampleVars = [...requiredKeys]
+      .filter((key) => !exampleKeys.has(key))
+      .sort();
+  } catch {
+    // A missing example file is reported separately by the scanner.
+  }
+
+  return {
+    envNotGitignored,
+    envLocalNotGitignored,
+    suspiciousNextPublicVars,
+    missingEnvExampleVars,
+  };
 }

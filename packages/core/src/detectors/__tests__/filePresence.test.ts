@@ -7,7 +7,7 @@ import { detectFilePresence } from '../filePresence.js';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function makeTempDir(): Promise<string> {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'psl-fp-test-'));
+  return fs.mkdtemp(path.join(os.tmpdir(), 'codeeq-files-test-'));
 }
 
 async function mkdir(dir: string, rel: string): Promise<void> {

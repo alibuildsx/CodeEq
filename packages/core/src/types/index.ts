@@ -2,6 +2,8 @@
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
+export type DeploymentReadiness = 'Ready' | 'Needs attention' | 'Blocked';
+
 // ─── Issue ────────────────────────────────────────────────────────────────────
 
 export interface Issue {
@@ -58,6 +60,10 @@ export interface ScanResult {
   targetDir: string;
   projectInfo: ProjectInfo;
   issues: Issue[];
+  healthScore: number;
+  deploymentReadiness: DeploymentReadiness;
+  /** Project-relative Next.js API route file paths */
+  apiRoutes: string[];
   /** Absolute path where the report was written */
   reportPath: string;
   scannedAt: string; // ISO 8601

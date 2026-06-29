@@ -1,158 +1,112 @@
 # 🛡️ CodeEq
 
-> **Version 0.1** — A local-first safety scanner for AI-built apps.
+> **Version 0.2** — A local-first safety scanner for AI-built apps.
 
-Scan any local web project and get an instant health report: detected framework, package manager, env file safety, Supabase key leaks, and more. No cloud calls. No data leaves your machine.
+CodeEq scans a local web project and reports framework details, environment-file safety, deployment readiness, Next.js API routes, and prioritized issues. No project data leaves your machine.
 
----
+## Features
 
-## ✨ Features (v0.1)
+- Health score from 0 to 100, weighted by issue severity
+- Deployment readiness status: Ready, Needs attention, or Blocked
+- Next.js App Router and Pages Router API route listing
+- `.env` and `.env.local` comparison with `.env.example` using variable names only
+- Supabase service-role leak detection
+- Markdown and JSON output
+- Optional no-write scans and custom report paths
 
-| Category | What it detects |
-|----------|----------------|
-| **Project Info** | Name, framework, language, package manager |
-| **File Presence** | `src/`, `app/`, `src/app/`, `pages/`, `src/pages/`, `.env`, `.env.local`, `.env.example`, `.gitignore`, `vercel.json` |
-| **Router Detection** | App Router (`app/` or `src/app/`) and Pages Router (`pages/` or `src/pages/`) |
-| **Env Safety** | `.env` / `.env.local` not in `.gitignore` |
-| **Secret Leaks** | Supabase `service_role` key in source files |
-| **NEXT_PUBLIC_** | Variables whose names look like private secrets |
-| **Build Config** | Missing `build` script in `package.json` |
-| **Next.js** | Missing `next.config.*` file (low severity warning) |
+## Monorepo
 
----
-
-## 📦 Monorepo Structure
-
-```
+```text
 packages/
-├── core/          @codeeq/core   — all scanner + report logic
-└── cli/           codeeq         — Commander CLI wrapper
+├── core/          @codeeq/core — detectors, scanner, scoring, and reports
+└── cli/           codeeq       — Commander CLI and file output
 ```
 
----
+## Setup
 
-## 🚀 Setup
-
-### Prerequisites
-
-- Node.js ≥ 18
-- pnpm ≥ 8 ([install](https://pnpm.io/installation))
-
-### Install & Build
+Requires Node.js 18 or newer and pnpm 8 or newer.
 
 ```bash
-# Clone the repo and enter it
-cd CodeEq
-
-# Install all workspace dependencies
 pnpm install
-
-# Build both packages (TypeScript → dist/)
 pnpm build
 ```
 
----
-
-## 🖥️ Usage
-
-### Development mode (no build needed)
+## Usage
 
 ```bash
-# Scan the current working directory
-pnpm --filter codeeq dev scan
+# Scan the current directory and write PROJECT_HEALTH_REPORT.md
+codeeq scan
 
-# Scan a specific project
-pnpm --filter codeeq dev scan /path/to/your/project
-pnpm --filter codeeq dev scan ../my-nextjs-app
+# Scan another project
+codeeq scan ../my-next-app
+
+# Print a terminal summary without writing Markdown
+codeeq scan --no-write
+
+# Print machine-readable JSON (the Markdown report is still written by default)
+codeeq scan --json
+
+# Write Markdown to a custom path relative to the scanned project
+codeeq scan --report reports/CODEEQ_REPORT.md
 ```
 
-### After building
+During development, replace `codeeq` with `pnpm --filter codeeq dev`, for example:
 
 ```bash
-# Using the compiled bin
-node packages/cli/dist/index.js scan /path/to/project
-
-# Or link globally
-cd packages/cli
-npm link
-codeeq scan /path/to/project
+pnpm --filter codeeq dev scan --no-write
 ```
 
----
+Options can be combined. Use `--json --no-write` for JSON-only output with no filesystem write.
 
-## 📄 Output
+## Health score
 
-### Terminal Summary
+Every scan starts at 100 and subtracts:
 
-```
-┌─────────────────────────────────────────────┐
-│  🛡️  codeeq scan results                    │
-├─────────────────────────────────────────────┤
-│  Project:   my-nextjs-app                   │
-│  Framework: Next.js                         │
-│  Stack:     TypeScript + pnpm               │
-├─────────────────────────────────────────────┤
-│  🔴 Critical      2                         │
-│  🟠 High          1                         │
-│  🟡 Medium        0                         │
-│  🔵 Low           1                         │
-├─────────────────────────────────────────────┤
-│  Report:    ./PROJECT_HEALTH_REPORT.md      │
-└─────────────────────────────────────────────┘
-```
+| Severity | Deduction |
+|----------|-----------|
+| Critical | 30 |
+| High | 20 |
+| Medium | 10 |
+| Low | 5 |
 
-### Markdown Report
+The score never falls below 0. Deployment readiness is Blocked by any critical or high issue, Needs attention when medium issues are present, and Ready otherwise.
 
-A `PROJECT_HEALTH_REPORT.md` file is written to the scanned project's root directory. It contains:
+## Report
 
-- Project info table
-- Issue summary table by severity
-- Full issue list with codes, titles, and fix guidance
+The Markdown report contains:
 
----
+- Project Info
+- Health Score
+- Deployment Readiness
+- API Routes
+- Issue Summary
+- Issues
+- Next Steps
 
-## 🔍 Issue Codes
+Environment findings contain variable names only; CodeEq does not include secret values in reports.
+
+## Issue codes
 
 | Code | Severity | Trigger |
 |------|----------|---------|
-| `ENV_NOT_GITIGNORED` | 🔴 Critical | `.env` not in `.gitignore` |
-| `ENV_LOCAL_NOT_GITIGNORED` | 🔴 Critical | `.env.local` not in `.gitignore` |
-| `SUPABASE_SERVICE_ROLE_LEAKED` | 🔴 Critical | `service_role` text in source files |
-| `ENV_NO_EXAMPLE` | 🟠 High | `.env` exists but `.env.example` missing |
-| `NEXT_PUBLIC_LIKELY_SECRET` | 🟠 High | `NEXT_PUBLIC_*` var name looks like a secret |
-| `MISSING_BUILD_SCRIPT` | 🟡 Medium | No `build` script in `package.json` |
-| `NEXTJS_MISSING_CONFIG` | 🔵 Low | Next.js project without `next.config.*` |
+| `ENV_NOT_GITIGNORED` | Critical | `.env` is not ignored by Git |
+| `ENV_LOCAL_NOT_GITIGNORED` | Critical | `.env.local` is not ignored by Git |
+| `SUPABASE_SERVICE_ROLE_LEAKED` | Critical | A likely Supabase service-role assignment is found |
+| `NEXT_PUBLIC_LIKELY_SECRET` | High | A public environment variable name looks sensitive |
+| `ENV_NO_EXAMPLE` | Medium | `.env` or `.env.local` exists without `.env.example` |
+| `ENV_EXAMPLE_MISSING_VARIABLES` | Medium | Required variable names are absent from `.env.example` |
+| `MISSING_BUILD_SCRIPT` | Medium | `package.json` has no `build` script |
+| `MISSING_START_SCRIPT` | Low | A Node/Next.js project has no `start` script |
+| `NEXTJS_MISSING_CONFIG` | Low | A Next.js project has no `next.config.*` file |
 
----
-
-## 🧪 Tests
+## Tests
 
 ```bash
-# Run all tests
 pnpm test
-
-# Run tests for core package only
 pnpm --filter @codeeq/core test
+pnpm --filter codeeq test
 ```
 
----
+## Scope
 
-## 🛣️ Roadmap
-
-- **v0.2** — More detectors (exposed API keys, hardcoded URLs, missing `lint` script)
-- **v0.3** — VS Code extension integration
-- **v0.4** — MCP server for AI assistants
-- **v0.5** — Web dashboard
-
----
-
-## 📝 Notes
-
-- **No network calls** — everything runs locally.
-- **Non-destructive** — the scanner never modifies your project files.
-- **Exit codes** — exits with code `1` if any `critical` issues are found (useful in CI).
-- **Report location** — `PROJECT_HEALTH_REPORT.md` is written to the scanned directory and silently overwritten on each run.
-
----
-
-*Built with TypeScript, pnpm workspaces, Commander, Zod, and Vitest.*
+CodeEq v0.2 is local-only and non-destructive. It does not include an MCP server, VS Code extension, dashboard, AI API calls, or auto-fix mode.

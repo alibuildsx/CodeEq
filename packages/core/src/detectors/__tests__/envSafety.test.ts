@@ -7,7 +7,7 @@ import { detectEnvSafety } from '../envSafety.js';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function makeTempDir(): Promise<string> {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'psl-test-'));
+  return fs.mkdtemp(path.join(os.tmpdir(), 'codeeq-env-test-'));
 }
 
 async function write(dir: string, filename: string, content: string): Promise<void> {
@@ -64,5 +64,17 @@ describe('detectEnvSafety', () => {
     await write(tmpDir, '.env', 'NEXT_PUBLIC_SITE_URL=https://example.com\n');
     const result = await detectEnvSafety(tmpDir, { hasEnv: true, hasEnvLocal: false });
     expect(result.suspiciousNextPublicVars).toHaveLength(0);
+  });
+
+  it('lists env variable names missing from .env.example without exposing values', async () => {
+    await write(tmpDir, '.env', '# database\nDATABASE_URL=postgres://private\nSHARED=value\n');
+    await write(tmpDir, '.env.local', '\nexport LOCAL_TOKEN=very-secret\nSHARED=override\n');
+    await write(tmpDir, '.env.example', '# documented\nSHARED=\n');
+
+    const result = await detectEnvSafety(tmpDir, { hasEnv: true, hasEnvLocal: true });
+
+    expect(result.missingEnvExampleVars).toEqual(['DATABASE_URL', 'LOCAL_TOKEN']);
+    expect(JSON.stringify(result)).not.toContain('postgres://private');
+    expect(JSON.stringify(result)).not.toContain('very-secret');
   });
 });

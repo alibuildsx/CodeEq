@@ -5,27 +5,29 @@ import { detectFramework, hasNextConfig } from '../detectors/framework.js';
 import { detectFilePresence } from '../detectors/filePresence.js';
 import { detectSupabase } from '../detectors/supabase.js';
 import { detectEnvSafety } from '../detectors/envSafety.js';
-import type { Issue, ProjectInfo, ScanResult, Language } from '../types/index.js';
+import { detectApiRoutes } from '../detectors/apiRoutes.js';
+import { calculateDeploymentReadiness, calculateHealthScore } from '../analysis/projectHealth.js';
+import type { Framework, Issue, ProjectInfo, ScanResult, Language } from '../types/index.js';
 
 // ─── Language detection ───────────────────────────────────────────────────────
 
 async function detectLanguage(targetDir: string): Promise<Language> {
-  try {
-    await fs.access(path.join(targetDir, 'tsconfig.json'));
-    return 'typescript';
-  } catch {
-    // No tsconfig — check for .ts files in common locations
-    const candidates = ['src/index.ts', 'index.ts', 'src/app.ts'];
-    for (const candidate of candidates) {
-      try {
-        await fs.access(path.join(targetDir, candidate));
-        return 'typescript';
-      } catch {
-        // continue
-      }
+  const candidates = [
+    'tsconfig.json',
+    'tsconfig.base.json',
+    'src/index.ts',
+    'index.ts',
+    'src/app.ts',
+  ];
+  for (const candidate of candidates) {
+    try {
+      await fs.access(path.join(targetDir, candidate));
+      return 'typescript';
+    } catch {
+      // continue
     }
-    return 'javascript';
   }
+  return 'javascript';
 }
 
 // ─── Issue builders ───────────────────────────────────────────────────────────
@@ -35,10 +37,10 @@ function buildIssues(params: {
   envSafety: Awaited<ReturnType<typeof detectEnvSafety>>;
   supabase: Awaited<ReturnType<typeof detectSupabase>>;
   scripts: Record<string, string>;
-  isNextJs: boolean;
+  framework: Framework;
   nextConfigExists: boolean;
 }): Issue[] {
-  const { presence, envSafety, supabase, scripts, isNextJs, nextConfigExists } = params;
+  const { presence, envSafety, supabase, scripts, framework, nextConfigExists } = params;
   const issues: Issue[] = [];
 
   // ── critical ──────────────────────────────────────────────────────────────
@@ -74,16 +76,6 @@ function buildIssues(params: {
 
   // ── high ──────────────────────────────────────────────────────────────────
 
-  if (presence.hasEnv && !presence.hasEnvExample) {
-    issues.push({
-      code: 'ENV_NO_EXAMPLE',
-      severity: 'high',
-      title: '.env exists but .env.example is missing',
-      detail:
-        'Without an .env.example, collaborators have no way to know which environment variables are required. Create an .env.example with all keys (but no real values).',
-    });
-  }
-
   for (const varName of envSafety.suspiciousNextPublicVars) {
     issues.push({
       code: 'NEXT_PUBLIC_LIKELY_SECRET',
@@ -94,6 +86,25 @@ function buildIssues(params: {
   }
 
   // ── medium ────────────────────────────────────────────────────────────────
+
+  if ((presence.hasEnv || presence.hasEnvLocal) && !presence.hasEnvExample) {
+    issues.push({
+      code: 'ENV_NO_EXAMPLE',
+      severity: 'medium',
+      title: 'Environment files exist but .env.example is missing',
+      detail:
+        'Create an .env.example containing the required variable names with placeholder or empty values. Do not include real secrets.',
+    });
+  }
+
+  if (presence.hasEnvExample && envSafety.missingEnvExampleVars.length > 0) {
+    issues.push({
+      code: 'ENV_EXAMPLE_MISSING_VARIABLES',
+      severity: 'medium',
+      title: '.env.example is missing required variable names',
+      detail: `Add these variable names to .env.example: ${envSafety.missingEnvExampleVars.join(', ')}.`,
+    });
+  }
 
   if (!scripts['build']) {
     issues.push({
@@ -107,7 +118,17 @@ function buildIssues(params: {
 
   // ── low ───────────────────────────────────────────────────────────────────
 
-  if (isNextJs && !nextConfigExists) {
+  if ((framework === 'nextjs' || framework === 'express') && !scripts['start']) {
+    issues.push({
+      code: 'MISSING_START_SCRIPT',
+      severity: 'low',
+      title: 'package.json is missing a "start" script',
+      detail:
+        'Non-static Node and Next.js deployments commonly require a "start" script to launch the production server.',
+    });
+  }
+
+  if (framework === 'nextjs' && !nextConfigExists) {
     issues.push({
       code: 'NEXTJS_MISSING_CONFIG',
       severity: 'low',
@@ -130,11 +151,12 @@ export async function scanProject(targetDir: string): Promise<ScanResult> {
   const resolvedDir = path.resolve(targetDir);
 
   // ── Phase 1: gather raw data (parallelised where possible) ──
-  const [pkg, packageManager, presence, language] = await Promise.all([
+  const [pkg, packageManager, presence, language, apiRoutes] = await Promise.all([
     readPackageJson(resolvedDir),
     detectPackageManager(resolvedDir),
     detectFilePresence(resolvedDir),
     detectLanguage(resolvedDir),
+    detectApiRoutes(resolvedDir),
   ]);
 
   const deps = pkg ? mergeDependencies(pkg) : {};
@@ -179,7 +201,7 @@ export async function scanProject(targetDir: string): Promise<ScanResult> {
     envSafety,
     supabase,
     scripts,
-    isNextJs: frameworkResult.framework === 'nextjs',
+    framework: frameworkResult.framework,
     nextConfigExists,
   });
 
@@ -193,11 +215,16 @@ export async function scanProject(targetDir: string): Promise<ScanResult> {
   issues.sort((a, b) => severityOrder[a.severity]! - severityOrder[b.severity]!);
 
   const reportPath = path.join(resolvedDir, 'PROJECT_HEALTH_REPORT.md');
+  const healthScore = calculateHealthScore(issues);
+  const deploymentReadiness = calculateDeploymentReadiness(issues);
 
   return {
     targetDir: resolvedDir,
     projectInfo,
     issues,
+    healthScore,
+    deploymentReadiness,
+    apiRoutes,
     reportPath,
     scannedAt: new Date().toISOString(),
   };
