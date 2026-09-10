@@ -1,4 +1,4 @@
-import type { Issue, ScanResult, Severity } from '../types/index.js';
+import type { Finding, ScanResult, Severity } from '../types/index.js';
 
 function severityEmoji(severity: Severity): string {
   return {
@@ -13,12 +13,12 @@ function severityLabel(severity: Severity): string {
   return severity.charAt(0).toUpperCase() + severity.slice(1);
 }
 
-function countBySeverity(issues: Issue[]): Record<Severity, number> {
+function countBySeverity(findings: Finding[]): Record<Severity, number> {
   return {
-    critical: issues.filter((issue) => issue.severity === 'critical').length,
-    high: issues.filter((issue) => issue.severity === 'high').length,
-    medium: issues.filter((issue) => issue.severity === 'medium').length,
-    low: issues.filter((issue) => issue.severity === 'low').length,
+    critical: findings.filter((f) => f.severity === 'critical').length,
+    high: findings.filter((f) => f.severity === 'high').length,
+    medium: findings.filter((f) => f.severity === 'medium').length,
+    low: findings.filter((f) => f.severity === 'low').length,
   };
 }
 
@@ -31,9 +31,25 @@ function frameworkLabel(framework: string): string {
   }[framework] ?? 'Unknown';
 }
 
+function routerLabel(router: string): string {
+  switch (router) {
+    case 'app':
+      return 'App Router';
+    case 'pages':
+      return 'Pages Router';
+    case 'hybrid':
+      return 'Hybrid (App + Pages)';
+    case 'none':
+    default:
+      return 'None';
+  }
+}
+
 export function generateMarkdownReport(result: ScanResult): string {
-  const { projectInfo: info, issues, targetDir, scannedAt } = result;
-  const counts = countBySeverity(issues);
+  const { projectInfo: info, targetDir, scannedAt } = result;
+  const findings: Finding[] = result.findings ?? result.issues ?? [];
+  const counts = countBySeverity(findings);
+
   const lines: string[] = [
     '# 🛡️ Project Health Report',
     '',
@@ -51,6 +67,12 @@ export function generateMarkdownReport(result: ScanResult): string {
     `| **Framework** | ${frameworkLabel(info.framework)} |`,
     `| **Language** | ${info.language === 'typescript' ? 'TypeScript' : 'JavaScript'} |`,
     `| **Package Manager** | ${info.packageManager} |`,
+    `| **Router** | ${routerLabel(info.router ?? 'none')} |`,
+    `| **Database** | ${info.database && info.database !== 'none' ? info.database : 'None'} |`,
+    `| **Authentication** | ${info.authProvider && info.authProvider !== 'none' ? info.authProvider : 'None'} |`,
+    `| **Deployment** | ${info.deploymentProvider && info.deploymentProvider !== 'none' ? info.deploymentProvider : 'None'} |`,
+    `| **Testing** | ${info.testingFrameworks && info.testingFrameworks.length > 0 ? info.testingFrameworks.join(', ') : 'None'} |`,
+    `| **Source Files** | ${info.sourceFileCount ?? 0} |`,
     `| **Supabase** | ${info.usesSupabase ? '✅ Yes' : '❌ No'} |`,
     `| **src/ folder** | ${info.hasSrcFolder ? '✅' : '❌'} |`,
     `| **App Router** | ${info.appRouterPath ? `✅ Yes (\`${info.appRouterPath}/\`)` : '❌ No'} |`,
@@ -91,35 +113,68 @@ export function generateMarkdownReport(result: ScanResult): string {
     `| ${severityEmoji('high')} High | **${counts.high}** |`,
     `| ${severityEmoji('medium')} Medium | **${counts.medium}** |`,
     `| ${severityEmoji('low')} Low | **${counts.low}** |`,
-    `| **Total** | **${issues.length}** |`,
+    `| **Total** | **${findings.length}** |`,
     '',
     '## Issues',
     '',
   );
 
-  if (issues.length === 0) {
+  if (findings.length === 0) {
     lines.push('✅ No issues were detected in this project.', '');
   } else {
     for (const severity of ['critical', 'high', 'medium', 'low'] as Severity[]) {
-      const severityIssues = issues.filter((issue) => issue.severity === severity);
-      if (severityIssues.length === 0) continue;
+      const severityFindings = findings.filter((f) => f.severity === severity);
+      if (severityFindings.length === 0) continue;
       lines.push(`### ${severityEmoji(severity)} ${severityLabel(severity)}`, '');
-      for (const issue of severityIssues) {
-        lines.push(`#### \`${issue.code}\` — ${issue.title}`, '');
-        if (issue.detail) lines.push(`> ${issue.detail}`, '');
+      for (const finding of severityFindings) {
+        lines.push(`#### \`${finding.code}\` — ${finding.title}`, '');
+
+        if (finding.category || finding.confidence || finding.deploymentImpact) {
+          const metaParts: string[] = [];
+          if (finding.category) metaParts.push(`**Category:** ${finding.category}`);
+          if (finding.severity) metaParts.push(`**Severity:** ${severityLabel(finding.severity)}`);
+          if (finding.confidence) metaParts.push(`**Confidence:** ${finding.confidence}`);
+          if (finding.deploymentImpact) metaParts.push(`**Deployment Impact:** ${finding.deploymentImpact}`);
+          lines.push(`> ${metaParts.join(' | ')}`, '>');
+        }
+
+        if (finding.summary) {
+          lines.push(`> **Summary:** ${finding.summary}`, '>');
+        } else if ((finding as { detail?: string }).detail) {
+          lines.push(`> ${(finding as { detail?: string }).detail}`, '>');
+        }
+
+        if (finding.whyItMatters) {
+          lines.push(`> **Why it matters:** ${finding.whyItMatters}`, '>');
+        }
+
+        if (finding.remediation) {
+          lines.push(`> **Remediation:** ${finding.remediation}`, '>');
+        }
+
+        if (finding.file) {
+          const loc = finding.line ? `${finding.file}:${finding.line}` : finding.file;
+          lines.push(`> **Location:** \`${loc}\``, '>');
+        }
+
+        if (finding.evidence) {
+          lines.push(`> **Evidence:** \`${finding.evidence}\``, '>');
+        }
+
+        lines.push('');
       }
     }
   }
 
   lines.push('## Next Steps', '');
-  if (issues.length === 0) {
+  if (findings.length === 0) {
     lines.push(
       '- Run CodeEq before deploying',
       '- Add `.env.example` if backend or environment variables are introduced',
       '- Use future CodeEq security scans before production',
     );
   } else {
-    const nextIssueCodes = issues.slice(0, 3).map((issue) => `\`${issue.code}\``).join(', ');
+    const nextIssueCodes = findings.slice(0, 3).map((f) => `\`${f.code}\``).join(', ');
     lines.push(
       `- Resolve the highest-priority findings first: ${nextIssueCodes}`,
       '- Re-run CodeEq and confirm the health score and readiness improve',

@@ -8,11 +8,20 @@ export { calculateDeploymentReadiness, calculateHealthScore } from './analysis/p
 export type {
   ScanResult,
   ProjectInfo,
+  Finding,
+  FindingCategory,
+  FindingConfidence,
+  DeploymentImpact,
   Issue,
   Severity,
   PackageManager,
   Framework,
   Language,
+  RouterType,
+  DatabaseProvider,
+  AuthProvider,
+  DeploymentProvider,
+  TestFramework,
   DeploymentReadiness,
 } from './types/index.js';
 
@@ -23,3 +32,11 @@ export { detectFilePresence, type FilePresenceResult } from './detectors/filePre
 export { detectSupabase } from './detectors/supabase.js';
 export { detectEnvSafety } from './detectors/envSafety.js';
 export { detectApiRoutes } from './detectors/apiRoutes.js';
+export {
+  detectRouter,
+  detectDatabase,
+  detectAuthProvider,
+  detectDeploymentProvider,
+  detectTestingFrameworks,
+  countSourceFiles,
+} from './detectors/projectIntelligence.js';
