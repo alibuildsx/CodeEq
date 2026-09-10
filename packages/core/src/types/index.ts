@@ -4,6 +4,19 @@ export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
 export type DeploymentReadiness = 'Ready' | 'Needs attention' | 'Blocked';
 
+export interface CategoryScores {
+  security: number;
+  configuration: number;
+  codeHealth: number;
+  dependencies: number;
+  deployment: number;
+}
+
+export interface HealthBreakdown {
+  overall: number;
+  categories: CategoryScores;
+}
+
 // ─── Finding V2 ───────────────────────────────────────────────────────────────
 
 export type FindingCategory =
@@ -115,6 +128,7 @@ export interface ScanResult {
   targetDir: string;
   projectInfo: ProjectInfo;
   findings: Finding[];
+  health: HealthBreakdown;
   healthScore: number;
   deploymentReadiness: DeploymentReadiness;
   /** Project-relative Next.js API route file paths */
