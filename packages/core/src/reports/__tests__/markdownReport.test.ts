@@ -9,6 +9,16 @@ function result(overrides: Partial<ScanResult> = {}): ScanResult {
     reportPath: '/project/PROJECT_HEALTH_REPORT.md',
     scannedAt: '2026-06-29T00:00:00.000Z',
     healthScore: 100,
+    health: {
+      overall: 100,
+      categories: {
+        security: 100,
+        configuration: 100,
+        codeHealth: 100,
+        dependencies: 100,
+        deployment: 100,
+      },
+    },
     deploymentReadiness: 'Ready',
     apiRoutes: [],
     findings: [],
@@ -43,10 +53,20 @@ function result(overrides: Partial<ScanResult> = {}): ScanResult {
   };
 }
 
-describe('generateMarkdownReport v0.2 + M2 CP1', () => {
-  it('renders every section with score, readiness, and API route details', () => {
+describe('generateMarkdownReport v0.2 + M2 CP2', () => {
+  it('renders every section with score, category breakdown, readiness, and API route details', () => {
     const markdown = generateMarkdownReport(result({
       healthScore: 90,
+      health: {
+        overall: 90,
+        categories: {
+          security: 100,
+          configuration: 100,
+          codeHealth: 100,
+          dependencies: 100,
+          deployment: 90,
+        },
+      },
       deploymentReadiness: 'Needs attention',
       apiRoutes: ['app/api/health/route.ts', 'pages/api/users.ts'],
       findings: [
@@ -77,6 +97,8 @@ describe('generateMarkdownReport v0.2 + M2 CP1', () => {
     }
     expect(markdown).toContain('CodeEq v0.2');
     expect(markdown).toContain('**90 / 100**');
+    expect(markdown).toContain('| Deployment | **90 / 100** |');
+    expect(markdown).toContain('| Security | **100 / 100** |');
     expect(markdown).toContain('**Needs attention**');
     expect(markdown).toContain('**2 API routes found**');
     expect(markdown).toContain('`app/api/health/route.ts`');

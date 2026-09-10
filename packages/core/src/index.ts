@@ -2,7 +2,12 @@
 
 export { scanProject } from './scanners/projectScanner.js';
 export { generateMarkdownReport } from './reports/markdownReport.js';
-export { calculateDeploymentReadiness, calculateHealthScore } from './analysis/projectHealth.js';
+export {
+  calculateDeploymentReadiness,
+  calculateHealthScore,
+  calculateCategoryScores,
+  calculateHealthBreakdown,
+} from './analysis/projectHealth.js';
 
 // Types
 export type {
@@ -12,6 +17,8 @@ export type {
   FindingCategory,
   FindingConfidence,
   DeploymentImpact,
+  CategoryScores,
+  HealthBreakdown,
   Issue,
   Severity,
   PackageManager,
@@ -25,7 +32,7 @@ export type {
   DeploymentReadiness,
 } from './types/index.js';
 
-// Detectors (exported for testing and future extension)
+// Detectors
 export { readPackageJson, mergeDependencies, detectPackageManager } from './detectors/packageJson.js';
 export { detectFramework, hasNextConfig } from './detectors/framework.js';
 export { detectFilePresence, type FilePresenceResult } from './detectors/filePresence.js';
@@ -40,3 +47,8 @@ export {
   detectTestingFrameworks,
   countSourceFiles,
 } from './detectors/projectIntelligence.js';
+export { detectSecurityFindings } from './detectors/security.js';
+export { detectConfigurationFindings } from './detectors/configuration.js';
+export { detectCodeHealthFindings } from './detectors/codeHealth.js';
+export { detectDependencyFindings } from './detectors/dependencies.js';
+export { detectVibeCodeFindings } from './detectors/vibeCode.js';

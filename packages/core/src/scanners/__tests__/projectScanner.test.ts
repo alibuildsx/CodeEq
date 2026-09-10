@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { scanProject } from '../projectScanner.js';
 
-describe('scanProject M2 CP1 findings and intelligence', () => {
+describe('scanProject M2 CP2 diagnostic engine', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
@@ -21,7 +21,7 @@ describe('scanProject M2 CP1 findings and intelligence', () => {
     await fs.writeFile(filePath, content, 'utf-8');
   }
 
-  it('adds deployment, score, readiness, Project Intelligence, and API route data to a Next.js scan', async () => {
+  it('adds deployment, score, category breakdown, readiness, Project Intelligence, and API route data to a Next.js scan', async () => {
     await write('package.json', JSON.stringify({
       name: 'next-app',
       packageManager: 'pnpm@9.0.0',
@@ -71,8 +71,17 @@ describe('scanProject M2 CP1 findings and intelligence', () => {
     // Backwards compatibility alias check
     expect(result.issues).toBe(result.findings);
 
-    // Health and readiness calculations
+    // Health and category scores check
     expect(result.healthScore).toBe(85);
+    expect(result.health.overall).toBe(85);
+    expect(result.health.categories).toEqual({
+      security: 100,
+      configuration: 90, // -10 for ENV_NO_EXAMPLE
+      codeHealth: 100,
+      dependencies: 100,
+      deployment: 95,   // -5 for MISSING_START_SCRIPT
+    });
+
     expect(result.deploymentReadiness).toBe('Needs attention');
     expect(result.apiRoutes).toEqual(['src/app/api/health/route.ts']);
 
@@ -95,8 +104,63 @@ describe('scanProject M2 CP1 findings and intelligence', () => {
     const jsonStr = JSON.stringify(result);
     const parsed = JSON.parse(jsonStr);
     expect(parsed.schemaVersion).toBe('1.0');
+    expect(parsed.health.categories.configuration).toBe(90);
     expect(parsed.findings).toHaveLength(result.findings.length);
     expect(parsed.projectInfo.router).toBe('app');
+  });
+
+  it('blocks readiness when a blocking finding like MISSING_BUILD_SCRIPT is present', async () => {
+    await write('package.json', JSON.stringify({
+      name: 'no-build-app',
+      dependencies: { react: '^18.0.0' },
+      scripts: {},
+    }));
+    await write('src/index.js', 'console.log("ready")');
+
+    const result = await scanProject(tmpDir);
+    expect(result.findings.some((f) => f.code === 'MISSING_BUILD_SCRIPT')).toBe(true);
+    // Semantic fix verified: MISSING_BUILD_SCRIPT is blocking, so readiness is Blocked
+    expect(result.deploymentReadiness).toBe('Blocked');
+  });
+
+  it('runs the comprehensive diagnostic engine across all 5 categories simultaneously', async () => {
+    await write('package.json', JSON.stringify({
+      name: 'vibe-project',
+      dependencies: {
+        '@clerk/nextjs': '^5.0.0',
+        'next-auth': '^4.0.0', // Vibe heuristic: DUPLICATE_AUTH_PROVIDERS
+        zod: '^3.0.0',
+      },
+      devDependencies: {
+        zod: '^3.2.0', // Dependency: DUPLICATE_DEPENDENCY_DECLARATION
+      },
+      scripts: { build: 'next build', start: 'next start' },
+    }));
+    await write('tsconfig.json', '{}');
+    await write('next.config.js', 'module.exports = {};');
+    await write('package-lock.json', '{}');
+    await write('pnpm-lock.yaml', 'lockfileVersion: 5.4'); // Config: MULTIPLE_LOCKFILES
+    await write('.env', 'DATABASE_URL=postgres://\n'); // Security: ENV_NOT_GITIGNORED
+    await write('.gitignore', 'node_modules\n');
+    await write('src/broken.ts', 'import axios from "axios";\nconst x = ;\nexport default x;'); // CodeHealth: SYNTAX_ERROR, Dep: UNDECLARED_DEPENDENCY
+
+    const result = await scanProject(tmpDir);
+    const codes = result.findings.map((f) => f.code);
+
+    // Verify all 5 categories are represented
+    expect(codes).toContain('ENV_NOT_GITIGNORED');                 // Security
+    expect(codes).toContain('MULTIPLE_LOCKFILES');                // Configuration
+    expect(codes).toContain('SYNTAX_ERROR');                      // Code Health
+    expect(codes).toContain('UNDECLARED_DEPENDENCY');             // Dependencies
+    expect(codes).toContain('DUPLICATE_DEPENDENCY_DECLARATION');  // Dependencies
+    expect(codes).toContain('DUPLICATE_AUTH_PROVIDERS');          // Vibe Code
+
+    // Category scores should reflect deductions in each category
+    expect(result.health.categories.security).toBeLessThan(100);
+    expect(result.health.categories.configuration).toBeLessThan(100);
+    expect(result.health.categories.codeHealth).toBeLessThan(100);
+    expect(result.health.categories.dependencies).toBeLessThan(100);
+    expect(result.deploymentReadiness).toBe('Blocked');
   });
 
   it('reports only missing variable names in evidence/summary when .env.example is incomplete', async () => {

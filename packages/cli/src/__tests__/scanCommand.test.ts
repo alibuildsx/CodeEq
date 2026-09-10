@@ -43,6 +43,16 @@ describe('scan command execution', () => {
     expect(JSON.parse(output)).toMatchObject({
       schemaVersion: '1.0',
       healthScore: expect.any(Number),
+      health: {
+        overall: expect.any(Number),
+        categories: expect.objectContaining({
+          security: expect.any(Number),
+          configuration: expect.any(Number),
+          codeHealth: expect.any(Number),
+          dependencies: expect.any(Number),
+          deployment: expect.any(Number),
+        }),
+      },
       deploymentReadiness: expect.any(String),
       findings: expect.any(Array),
       projectInfo: expect.objectContaining({

@@ -85,15 +85,32 @@ export function generateMarkdownReport(result: ScanResult): string {
     '',
     '## Health Score',
     '',
-    `**${result.healthScore} / 100**`,
+    `**${result.health?.overall ?? result.healthScore} / 100**`,
     '',
+  ];
+
+  if (result.health?.categories) {
+    const cats = result.health.categories;
+    lines.push(
+      '| Category | Score |',
+      '|----------|-------|',
+      `| Security | **${cats.security} / 100** |`,
+      `| Configuration | **${cats.configuration} / 100** |`,
+      `| Code Health | **${cats.codeHealth} / 100** |`,
+      `| Dependencies | **${cats.dependencies} / 100** |`,
+      `| Deployment | **${cats.deployment} / 100** |`,
+      '',
+    );
+  }
+
+  lines.push(
     '## Deployment Readiness',
     '',
     `**${result.deploymentReadiness}**`,
     '',
     '## API Routes',
     '',
-  ];
+  );
 
   const routeLabel = result.apiRoutes.length === 1 ? 'API route' : 'API routes';
   lines.push(`**${result.apiRoutes.length} ${routeLabel} found**`, '');
