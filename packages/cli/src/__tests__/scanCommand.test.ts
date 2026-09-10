@@ -36,13 +36,19 @@ describe('scan command execution', () => {
     await expect(fs.readFile(execution.result.reportPath, 'utf-8')).resolves.toContain('CodeEq v0.2');
   });
 
-  it('formats a machine-readable JSON result', async () => {
+  it('formats a machine-readable JSON result conforming to schemaVersion 1.0', async () => {
     const execution = await executeScan(tmpDir, { write: false });
     const output = formatJsonOutput(execution.result);
 
     expect(JSON.parse(output)).toMatchObject({
+      schemaVersion: '1.0',
       healthScore: expect.any(Number),
       deploymentReadiness: expect.any(String),
+      findings: expect.any(Array),
+      projectInfo: expect.objectContaining({
+        router: expect.any(String),
+        sourceFileCount: expect.any(Number),
+      }),
       apiRoutes: [],
     });
   });

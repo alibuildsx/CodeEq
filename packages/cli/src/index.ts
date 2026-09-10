@@ -59,13 +59,14 @@ function padRight(str: string, len: number): string {
 }
 
 function printSummary(result: ScanResult, reportWritten: boolean): void {
-  const { projectInfo: info, issues, reportPath } = result;
+  const { projectInfo: info, reportPath } = result;
+  const findings = result.findings ?? result.issues ?? [];
 
   const counts: Record<Severity, number> = {
-    critical: issues.filter((i) => i.severity === 'critical').length,
-    high:     issues.filter((i) => i.severity === 'high').length,
-    medium:   issues.filter((i) => i.severity === 'medium').length,
-    low:      issues.filter((i) => i.severity === 'low').length,
+    critical: findings.filter((i) => i.severity === 'critical').length,
+    high:     findings.filter((i) => i.severity === 'high').length,
+    medium:   findings.filter((i) => i.severity === 'medium').length,
+    low:      findings.filter((i) => i.severity === 'low').length,
   };
 
   const stack = `${info.language === 'typescript' ? 'TypeScript' : 'JavaScript'} + ${info.packageManager}`;
@@ -160,7 +161,8 @@ async function runScan(directory: string, options: CliScanOptions): Promise<void
   }
 
   // Exit with non-zero code if any critical issues found
-  const hasCritical = execution.result.issues.some((i) => i.severity === 'critical');
+  const findings = execution.result.findings ?? execution.result.issues ?? [];
+  const hasCritical = findings.some((i) => i.severity === 'critical');
   if (hasCritical) {
     process.exitCode = 1;
   }
