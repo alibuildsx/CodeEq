@@ -1,20 +1,42 @@
-// ─── Severity ────────────────────────────────────────────────────────────────
+// ─── Severity & Health ────────────────────────────────────────────────────────
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
 export type DeploymentReadiness = 'Ready' | 'Needs attention' | 'Blocked';
 
-// ─── Issue ────────────────────────────────────────────────────────────────────
+// ─── Finding V2 ───────────────────────────────────────────────────────────────
 
-export interface Issue {
+export type FindingCategory =
+  | 'security'
+  | 'configuration'
+  | 'code-health'
+  | 'dependencies'
+  | 'deployment';
+
+export type FindingConfidence = 'high' | 'medium' | 'low';
+
+export type DeploymentImpact = 'blocking' | 'risk' | 'none';
+
+export interface Finding {
   /** Stable machine-readable identifier, e.g. "ENV_NOT_GITIGNORED" */
   code: string;
+  category: FindingCategory;
   severity: Severity;
+  confidence: FindingConfidence;
   title: string;
-  detail?: string;
+  summary: string;
+  file?: string;
+  line?: number;
+  evidence?: string;
+  whyItMatters: string;
+  remediation: string;
+  deploymentImpact: DeploymentImpact;
 }
 
-// ─── Project Info ─────────────────────────────────────────────────────────────
+/** Legacy alias for Finding to maintain backward compatibility during migration */
+export type Issue = Finding;
+
+// ─── Project Intelligence ─────────────────────────────────────────────────────
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'unknown';
 
@@ -27,6 +49,29 @@ export type Framework =
 
 export type Language = 'typescript' | 'javascript';
 
+export type RouterType = 'app' | 'pages' | 'hybrid' | 'none';
+
+export type DatabaseProvider =
+  | 'supabase'
+  | 'prisma'
+  | 'drizzle'
+  | 'mongodb'
+  | 'firebase'
+  | 'unknown'
+  | 'none';
+
+export type AuthProvider =
+  | 'supabase'
+  | 'clerk'
+  | 'nextauth'
+  | 'firebase'
+  | 'unknown'
+  | 'none';
+
+export type DeploymentProvider = 'vercel' | 'netlify' | 'unknown' | 'none';
+
+export type TestFramework = 'vitest' | 'jest' | 'playwright' | 'cypress';
+
 export interface ProjectInfo {
   /** Value of `name` in package.json, or "(unnamed)" */
   name: string;
@@ -37,7 +82,8 @@ export interface ProjectInfo {
   scripts: Record<string, string>;
   /** Top-level dependencies (prod + dev merged) */
   dependencies: Record<string, string>;
-  // ── File / folder presence ──
+  // ── Router & Structure ──
+  router: RouterType;
   hasSrcFolder: boolean;
   /** Relative path of app router folder found ("app" | "src/app"), null if absent */
   appRouterPath: string | null;
@@ -45,21 +91,30 @@ export interface ProjectInfo {
   pagesRouterPath: string | null;
   hasAppRouter: boolean;
   hasPagesRouter: boolean;
+  // ── File / folder presence ──
   hasEnv: boolean;
   hasEnvLocal: boolean;
   hasEnvExample: boolean;
   hasGitignore: boolean;
   hasVercelJson: boolean;
   usesSupabase: boolean;
+  // ── Extended Project Intelligence (M2 CP1) ──
+  database: DatabaseProvider;
+  authProvider: AuthProvider;
+  deploymentProvider: DeploymentProvider;
+  testingFrameworks: TestFramework[];
+  sourceFileCount: number;
+  apiRouteCount: number;
 }
 
 // ─── Scan Result ──────────────────────────────────────────────────────────────
 
 export interface ScanResult {
+  schemaVersion: '1.0';
   /** Absolute path to the scanned directory */
   targetDir: string;
   projectInfo: ProjectInfo;
-  issues: Issue[];
+  findings: Finding[];
   healthScore: number;
   deploymentReadiness: DeploymentReadiness;
   /** Project-relative Next.js API route file paths */
@@ -67,4 +122,6 @@ export interface ScanResult {
   /** Absolute path where the report was written */
   reportPath: string;
   scannedAt: string; // ISO 8601
+  /** Deprecated alias pointing to findings for backwards compatibility */
+  issues?: Finding[];
 }

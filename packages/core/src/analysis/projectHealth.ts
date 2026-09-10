@@ -1,4 +1,4 @@
-import type { DeploymentReadiness, Issue, Severity } from '../types/index.js';
+import type { DeploymentReadiness, Finding, Severity } from '../types/index.js';
 
 const SCORE_DEDUCTIONS: Record<Severity, number> = {
   critical: 30,
@@ -7,9 +7,9 @@ const SCORE_DEDUCTIONS: Record<Severity, number> = {
   low: 5,
 };
 
-export function calculateHealthScore(issues: Issue[]): number {
-  const deductions = issues.reduce(
-    (total, issue) => total + SCORE_DEDUCTIONS[issue.severity],
+export function calculateHealthScore(findings: Array<Pick<Finding, 'severity'>>): number {
+  const deductions = findings.reduce(
+    (total, item) => total + SCORE_DEDUCTIONS[item.severity],
     0,
   );
 
@@ -17,13 +17,13 @@ export function calculateHealthScore(issues: Issue[]): number {
 }
 
 export function calculateDeploymentReadiness(
-  issues: Issue[],
+  findings: Array<Pick<Finding, 'severity'>>,
 ): DeploymentReadiness {
-  if (issues.some((issue) => issue.severity === 'critical' || issue.severity === 'high')) {
+  if (findings.some((item) => item.severity === 'critical' || item.severity === 'high')) {
     return 'Blocked';
   }
 
-  if (issues.some((issue) => issue.severity === 'medium')) {
+  if (findings.some((item) => item.severity === 'medium')) {
     return 'Needs attention';
   }
 
