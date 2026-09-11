@@ -33,7 +33,7 @@ describe('scan command execution', () => {
     });
 
     expect(execution.result.reportPath).toBe(path.join(tmpDir, 'reports', 'CODEEQ_REPORT.md'));
-    await expect(fs.readFile(execution.result.reportPath, 'utf-8')).resolves.toContain('CodeEq v0.2');
+    await expect(fs.readFile(execution.result.reportPath, 'utf-8')).resolves.toContain('CodeEq v1.0');
   });
 
   it('formats a machine-readable JSON result conforming to schemaVersion 1.0', async () => {

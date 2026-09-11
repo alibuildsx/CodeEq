@@ -193,7 +193,7 @@ export function RepositoryScanForm({
             fontSize: '0.85rem',
           }}
         >
-          Try a demo repository (CodeEq)
+          Try demo repository (octocat/Hello-World)
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>

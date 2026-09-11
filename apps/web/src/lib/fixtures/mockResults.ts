@@ -1,6 +1,6 @@
 import type { RepositoryScanResponse } from '../scanner/types';
 
-export const CANONICAL_DEMO_REPO = 'https://github.com/alibuildsx/CodeEq';
+export const CANONICAL_DEMO_REPO = 'https://github.com/octocat/Hello-World';
 
 export const mockHealthyResult: RepositoryScanResponse = {
   repository: {

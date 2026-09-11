@@ -29,7 +29,7 @@ describe('Dashboard Component Rendering', () => {
       expect(html).toContain('Balance your AI-built code.');
       expect(html).toContain('https://github.com/owner/repo or owner/repo');
       expect(html).toContain('Scan Repository');
-      expect(html).toContain('Try a demo repository');
+      expect(html).toContain('Try demo repository');
       expect(html).toContain('Static analysis only — never executes repository code');
     });
 

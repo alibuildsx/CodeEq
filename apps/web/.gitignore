@@ -5,9 +5,12 @@ out/
 # Dependencies
 node_modules/
 
-# Environment variables
-.env*.local
+# Environment variables (preserve .env.example)
 .env
+.env*.local
+.env.production
+.env.development
+!.env.example
 
 # Debug logs
 npm-debug.log*

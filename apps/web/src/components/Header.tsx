@@ -63,7 +63,7 @@ export function Header({ onReset }: HeaderProps) {
                   fontFamily: 'var(--font-mono)',
                 }}
               >
-                v0.4
+                v1.0
               </span>
             </div>
           </div>

@@ -95,7 +95,7 @@ describe('generateMarkdownReport v0.2 + M2 CP2', () => {
     ]) {
       expect(markdown).toContain(`## ${section}`);
     }
-    expect(markdown).toContain('CodeEq v0.2');
+    expect(markdown).toContain('CodeEq v1.0');
     expect(markdown).toContain('**90 / 100**');
     expect(markdown).toContain('| Deployment | **90 / 100** |');
     expect(markdown).toContain('| Security | **100 / 100** |');

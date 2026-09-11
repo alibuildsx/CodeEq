@@ -1,14 +1,28 @@
 node_modules/
 dist/
+.next/
+out/
+coverage/
 *.js.map
 *.d.ts.map
+*.tsbuildinfo
 .DS_Store
-.env
-.env.local
+Thumbs.db
 *.log
 
 # Local pnpm store
 .pnpm-store/
+
+# Environment files (never commit real secrets)
+.env
+.env*.local
+.env.production
+.env.development
+!.env.example
+
+# Temporary test/scanner directories
+codeeq-scan-*
+codeeq-cli-test-*
 
 # Generated CodeEq reports
 PROJECT_HEALTH_REPORT.md
