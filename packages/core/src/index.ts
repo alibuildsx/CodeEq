@@ -52,3 +52,17 @@ export { detectConfigurationFindings } from './detectors/configuration.js';
 export { detectCodeHealthFindings } from './detectors/codeHealth.js';
 export { detectDependencyFindings } from './detectors/dependencies.js';
 export { detectVibeCodeFindings } from './detectors/vibeCode.js';
+
+// Exclusion Policy
+export {
+  GENERATED_OR_HEAVY_DIRS,
+  NESTED_NON_PRODUCTION_DIRS,
+  DOC_EXTENSIONS,
+  normalizePath,
+  shouldSkipDirectory,
+  isGeneratedOrHeavyPath,
+  isNestedNonProductionPath,
+  isTestFile,
+  isDocFile,
+  isTestOrDocFile,
+} from './analysis/exclusionPolicy.js';

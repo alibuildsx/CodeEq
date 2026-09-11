@@ -5,6 +5,11 @@ import { promisify } from 'node:util';
 import type { Finding } from '../types/index.js';
 import { collectScannableFiles, detectSupabase } from './supabase.js';
 import { detectEnvSafety } from './envSafety.js';
+import {
+  normalizePath,
+  isNestedNonProductionPath,
+  isTestOrDocFile,
+} from '../analysis/exclusionPolicy.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -15,25 +20,6 @@ function maskToken(token: string, prefixLen = 8, suffixLen = 4): string {
     return token.slice(0, 4) + '...';
   }
   return token.slice(0, prefixLen) + '...' + token.slice(-suffixLen);
-}
-
-function isTestOrDocFile(filePath: string): boolean {
-  const normalized = filePath.split(path.sep).join('/');
-  return (
-    normalized.includes('__tests__/') ||
-    normalized.includes('__mocks__/') ||
-    normalized.includes('.test.') ||
-    normalized.includes('.spec.') ||
-    normalized.includes('/test-fixtures/') ||
-    normalized.includes('/fixtures/') ||
-    normalized.startsWith('fixtures/') ||
-    normalized.includes('/docs/') ||
-    normalized.startsWith('docs/') ||
-    normalized.includes('/examples/') ||
-    normalized.startsWith('examples/') ||
-    normalized.endsWith('.md') ||
-    normalized.endsWith('.txt')
-  );
 }
 
 
@@ -163,7 +149,7 @@ export async function detectSecurityFindings(
 
 
   // ── 3. Supabase service role leak ──
-  const supabaseResult = await detectSupabase(targetDir, deps);
+  const supabaseResult = await detectSupabase(targetDir, deps, { files });
   if (supabaseResult.serviceRoleLeaked) {
     findings.push({
       code: 'SUPABASE_SERVICE_ROLE_LEAKED',
@@ -207,8 +193,10 @@ export async function detectSecurityFindings(
 
   // ── 5. File contents scan for hardcoded tokens & keys ──
   for (const filePath of files) {
-    const relPath = path.relative(targetDir, filePath).split(path.sep).join('/');
-    const isTest = isTestOrDocFile(relPath);
+    const relPath = normalizePath(path.relative(targetDir, filePath));
+    if (isNestedNonProductionPath(relPath) || isTestOrDocFile(relPath)) {
+      continue;
+    }
 
     let content: string;
     try {
@@ -295,8 +283,8 @@ export async function detectSecurityFindings(
         });
       }
 
-      // ── Database connection URL with credentials (skip tests & examples) ──
-      if (!isTest && !relPath.endsWith('.example')) {
+      // ── Database connection URL with credentials (skip examples) ──
+      if (!relPath.endsWith('.example')) {
         DB_URL_REGEX.lastIndex = 0;
         const dbMatch = DB_URL_REGEX.exec(line);
         if (dbMatch) {
@@ -324,11 +312,10 @@ export async function detectSecurityFindings(
       }
 
       // ── JWT Secret Assignment ──
-      if (!isTest) {
-        JWT_SECRET_REGEX.lastIndex = 0;
-        const jwtMatch = JWT_SECRET_REGEX.exec(line);
-        if (jwtMatch) {
-          const rawSecret = jwtMatch[1]!;
+      JWT_SECRET_REGEX.lastIndex = 0;
+      const jwtMatch = JWT_SECRET_REGEX.exec(line);
+      if (jwtMatch) {
+        const rawSecret = jwtMatch[1]!;
           findings.push({
             code: 'HARDCODED_JWT_SECRET',
             category: 'security',
@@ -346,7 +333,6 @@ export async function detectSecurityFindings(
             deploymentImpact: 'risk',
           });
         }
-      }
     }
   }
 

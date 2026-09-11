@@ -3,28 +3,11 @@ import path from 'node:path';
 import type { Finding } from '../types/index.js';
 import { readPackageJson, mergeDependencies } from './packageJson.js';
 import { collectScannableFiles } from './supabase.js';
-
-function isTestOrDocFile(relPath: string): boolean {
-  const normalized = relPath.split(path.sep).join('/');
-  return (
-    normalized.includes('__tests__/') ||
-    normalized.includes('__mocks__/') ||
-    normalized.includes('.test.') ||
-    normalized.includes('.spec.') ||
-    normalized.includes('/test-fixtures/') ||
-    normalized.includes('/fixtures/') ||
-    normalized.startsWith('fixtures/') ||
-    normalized.includes('/docs/') ||
-    normalized.startsWith('docs/') ||
-    normalized.includes('/examples/') ||
-    normalized.startsWith('examples/') ||
-    normalized.includes('.sample.') ||
-    normalized.endsWith('.sample') ||
-    normalized.endsWith('.md') ||
-    normalized.endsWith('.txt') ||
-    normalized.endsWith('.example')
-  );
-}
+import {
+  normalizePath,
+  isNestedNonProductionPath,
+  isTestOrDocFile,
+} from '../analysis/exclusionPolicy.js';
 
 
 const JS_TS_EXTENSIONS = new Set([
@@ -114,8 +97,8 @@ export async function detectVibeCodeFindings(
   const apiClientFiles = new Set<string>();
 
   for (const filePath of sourceFiles) {
-    const relPath = path.relative(targetDir, filePath).split(path.sep).join('/');
-    if (isTestOrDocFile(relPath)) continue;
+    const relPath = normalizePath(path.relative(targetDir, filePath));
+    if (isNestedNonProductionPath(relPath) || isTestOrDocFile(relPath)) continue;
 
     let content: string;
     try {

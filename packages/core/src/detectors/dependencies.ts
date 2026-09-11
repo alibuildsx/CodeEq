@@ -3,6 +3,11 @@ import path from 'node:path';
 import type { Finding } from '../types/index.js';
 import { readPackageJson } from './packageJson.js';
 import { collectScannableFiles } from './supabase.js';
+import {
+  normalizePath,
+  isNestedNonProductionPath,
+  isTestOrDocFile,
+} from '../analysis/exclusionPolicy.js';
 
 // ─── Node.js Built-ins ────────────────────────────────────────────────────────
 
@@ -165,14 +170,9 @@ export async function detectDependencyFindings(
   const reportedMissing = new Set<string>();
 
   for (const filePath of sourceFiles) {
-    const relPath = path.relative(targetDir, filePath).split(path.sep).join('/');
-    // Skip test files for undeclared imports
-    if (
-      relPath.includes('__tests__/') ||
-      relPath.includes('__mocks__/') ||
-      relPath.includes('.test.') ||
-      relPath.includes('.spec.')
-    ) {
+    const relPath = normalizePath(path.relative(targetDir, filePath));
+    // Skip nested non-production directories and test/doc files for undeclared imports
+    if (isNestedNonProductionPath(relPath) || isTestOrDocFile(relPath)) {
       continue;
     }
 

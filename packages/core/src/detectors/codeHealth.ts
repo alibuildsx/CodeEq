@@ -3,6 +3,11 @@ import path from 'node:path';
 import ts from 'typescript';
 import type { Finding } from '../types/index.js';
 import { collectScannableFiles } from './supabase.js';
+import {
+  normalizePath,
+  isNestedNonProductionPath,
+  isTestOrDocFile,
+} from '../analysis/exclusionPolicy.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -13,25 +18,6 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function isTestOrDocFile(relPath: string): boolean {
-  const normalized = relPath.split(path.sep).join('/');
-  return (
-    normalized.includes('__tests__/') ||
-    normalized.includes('__mocks__/') ||
-    normalized.includes('.test.') ||
-    normalized.includes('.spec.') ||
-    normalized.includes('/test-fixtures/') ||
-    normalized.includes('/fixtures/') ||
-    normalized.startsWith('fixtures/') ||
-    normalized.includes('/docs/') ||
-    normalized.startsWith('docs/') ||
-    normalized.includes('/examples/') ||
-    normalized.startsWith('examples/') ||
-    normalized.endsWith('.md') ||
-    normalized.endsWith('.txt')
-  );
 }
 
 function getScriptKind(filePath: string): ts.ScriptKind {
@@ -102,7 +88,10 @@ export async function detectCodeHealthFindings(
   const markerFiles = new Set<string>();
 
   for (const filePath of sourceFiles) {
-    const relPath = path.relative(targetDir, filePath).split(path.sep).join('/');
+    const relPath = normalizePath(path.relative(targetDir, filePath));
+    if (isNestedNonProductionPath(relPath)) {
+      continue;
+    }
     const isTest = isTestOrDocFile(relPath);
 
     let content: string;

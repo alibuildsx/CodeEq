@@ -232,20 +232,9 @@ export async function detectTestingFrameworks(
   return frameworks;
 }
 
-// ─── Source File Counter ──────────────────────────────────────────────────────
+import { shouldSkipDirectory } from '../analysis/exclusionPolicy.js';
 
-const EXCLUDED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  '.output',
-  '.turbo',
-  'coverage',
-  '.cache',
-]);
+// ─── Source File Counter ──────────────────────────────────────────────────────
 
 const SOURCE_EXTENSIONS = new Set([
   '.ts',
@@ -281,7 +270,7 @@ export async function countSourceFiles(targetDir: string): Promise<number> {
         }
 
         if (stat.isDirectory()) {
-          if (!EXCLUDED_DIRS.has(name)) {
+          if (!shouldSkipDirectory(name)) {
             await walk(fullPath);
           }
           return;

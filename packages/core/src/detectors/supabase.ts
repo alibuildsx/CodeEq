@@ -1,24 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { shouldSkipDirectory } from '../analysis/exclusionPolicy.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-/**
- * Directories that are always skipped during source file scanning.
- * Prevents false positives from lockfiles, generated output, and vendor code.
- */
-const EXCLUDED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  '.output',
-  '.turbo',
-  'coverage',
-  '.cache',
-]);
 
 /**
  * File extensions scanned for secrets.
@@ -112,7 +96,7 @@ async function collectScannableFiles(dir: string): Promise<string[]> {
         }
 
         if (stat.isDirectory()) {
-          if (!EXCLUDED_DIRS.has(name)) {
+          if (!shouldSkipDirectory(name)) {
             await walk(fullPath);
           }
           return;
@@ -152,13 +136,16 @@ export interface SupabaseDetectionResult {
 export async function detectSupabase(
   targetDir: string,
   deps: Record<string, string>,
+  options?: {
+    files?: string[];
+  },
 ): Promise<SupabaseDetectionResult> {
   const depNames = Object.keys(deps);
   const usesSupabase =
     depNames.some((d) => d.startsWith('@supabase/')) ||
     depNames.includes('supabase');
 
-  const files = await collectScannableFiles(targetDir);
+  const files = options?.files ?? (await collectScannableFiles(targetDir));
 
   for (const filePath of files) {
     try {
