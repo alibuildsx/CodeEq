@@ -13,13 +13,13 @@ export function ScanErrorState({ error, onDismiss }: ScanErrorStateProps) {
   const getFriendlyMessage = (code: string, fallback: string) => {
     switch (code) {
       case 'INVALID_GITHUB_URL':
-        return 'Please enter a valid public GitHub repository URL (e.g. https://github.com/owner/repo).';
+        return 'Please enter a valid public GitHub repository URL (e.g. https://github.com/owner/repo or owner/repo).';
       case 'REPOSITORY_NOT_ACCESSIBLE':
         return 'CodeEq could not access this repository. Please make sure it exists, is spelled correctly, and is publicly visible.';
       case 'GITHUB_RATE_LIMITED':
         return 'GitHub is temporarily rate limiting unauthenticated public requests. Please try again in a few moments.';
       case 'REPOSITORY_TOO_LARGE':
-        return 'This repository exceeds the online scanner limit (15MB compressed / 75MB extracted). Use the local CodeEq CLI for large codebases.';
+        return 'This repository is too large for the online CodeEq scanner. Try a smaller repository or use the local CLI.';
       case 'ARCHIVE_DOWNLOAD_FAILED':
         return 'Failed to download the repository archive from GitHub. Please verify repository availability and try again.';
       case 'SCAN_TIMEOUT':

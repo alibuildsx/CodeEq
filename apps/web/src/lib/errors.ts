@@ -7,6 +7,32 @@ export type ScanErrorCode =
   | 'SCAN_TIMEOUT'
   | 'SCAN_FAILED';
 
+export const KNOWN_SCAN_ERROR_CODES: readonly ScanErrorCode[] = [
+  'INVALID_GITHUB_URL',
+  'REPOSITORY_NOT_ACCESSIBLE',
+  'GITHUB_RATE_LIMITED',
+  'REPOSITORY_TOO_LARGE',
+  'ARCHIVE_DOWNLOAD_FAILED',
+  'SCAN_TIMEOUT',
+  'SCAN_FAILED',
+];
+
+export function isScanErrorCode(code: unknown): code is ScanErrorCode {
+  return typeof code === 'string' && (KNOWN_SCAN_ERROR_CODES as readonly string[]).includes(code);
+}
+
+export class FrontendScanError extends Error {
+  readonly code: ScanErrorCode;
+  readonly statusCode: number;
+
+  constructor(code: ScanErrorCode, message: string, statusCode: number = 500) {
+    super(message);
+    this.name = 'FrontendScanError';
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
 export class ScanError extends Error {
   readonly code: ScanErrorCode;
   readonly statusCode: number;

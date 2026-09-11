@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { CANONICAL_DEMO_REPO } from '../lib/fixtures/mockResults';
 import { ArrowRight, Search, Shield } from './icons';
 
+import { FrontendScanError } from '../lib/errors';
+import { normalizeRepositoryInput } from '../lib/github/urlNormalizer';
+
 interface RepositoryScanFormProps {
   initialUrl?: string;
   isScanning?: boolean;
@@ -20,19 +23,17 @@ export function RepositoryScanForm({
     e.preventDefault();
     if (isScanning) return;
 
-    const trimmed = url.trim();
-    if (!trimmed) {
-      setValidationError('Please enter a GitHub repository URL');
-      return;
+    try {
+      const normalized = normalizeRepositoryInput(url);
+      setValidationError(null);
+      onScan(normalized);
+    } catch (err: unknown) {
+      if (err instanceof FrontendScanError) {
+        setValidationError(err.message);
+      } else {
+        setValidationError('Please enter a valid GitHub repository URL or owner/repo shorthand');
+      }
     }
-
-    if (!trimmed.startsWith('https://github.com/')) {
-      setValidationError('URL must start with https://github.com/owner/repo');
-      return;
-    }
-
-    setValidationError(null);
-    onScan(trimmed);
   };
 
   const handleDemoClick = () => {
@@ -118,7 +119,7 @@ export function RepositoryScanForm({
               setUrl(e.target.value);
               if (validationError) setValidationError(null);
             }}
-            placeholder="https://github.com/owner/repository"
+            placeholder="https://github.com/owner/repo or owner/repo"
             aria-label="GitHub Repository URL"
             disabled={isScanning}
             style={{

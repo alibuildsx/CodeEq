@@ -27,7 +27,7 @@ describe('Dashboard Component Rendering', () => {
       );
 
       expect(html).toContain('Balance your AI-built code.');
-      expect(html).toContain('https://github.com/owner/repository');
+      expect(html).toContain('https://github.com/owner/repo or owner/repo');
       expect(html).toContain('Scan Repository');
       expect(html).toContain('Try a demo repository');
       expect(html).toContain('Static analysis only — never executes repository code');
@@ -235,6 +235,26 @@ describe('Dashboard Component Rendering', () => {
         expect(html).not.toContain('/tmp/');
       });
     }
+
+    it('renders preferred copy for REPOSITORY_TOO_LARGE without hardcoded 25 MB limit', () => {
+      const html = renderToString(
+        <ScanErrorState error={{ code: 'REPOSITORY_TOO_LARGE', message: 'Size limit exceeded' }} />
+      );
+
+      expect(html).toContain('This repository is too large for the online CodeEq scanner.');
+      expect(html).toContain('Try a smaller repository or use the local CLI.');
+      expect(html).not.toContain('25 MB');
+      expect(html).not.toContain('25MB');
+    });
+
+    it('safely falls back to generic message for unknown future error codes', () => {
+      const html = renderToString(
+        <ScanErrorState error={{ code: 'UNKNOWN_FUTURE_CODE', message: '' }} />
+      );
+
+      expect(html).toContain('An unexpected error occurred while analyzing the repository. Please try again.');
+      expect(html).toContain('UNKNOWN FUTURE CODE');
+    });
   });
 
   describe('Sanitization Invariants', () => {
