@@ -122,28 +122,29 @@ export async function detectConfigurationFindings(
 
   // ── 3. packageManager mismatch ──
   const pmField = (pkg as { packageManager?: string })?.packageManager ?? (parsedRawJson?.['packageManager'] as string | undefined);
-  if (pmField && uniqueLockfiles.length === 1) {
-    const lockfileName = uniqueLockfiles[0]!;
-    const lockfileInfo = LOCKFILE_MANAGERS.find((l) => l.file === lockfileName);
-    if (lockfileInfo) {
-      const pmFieldNormalized = pmField.split('@')[0]!;
-      if (pmFieldNormalized !== lockfileInfo.manager) {
-        findings.push({
-          code: 'PACKAGE_MANAGER_MISMATCH',
-          category: 'configuration',
-          severity: 'medium',
-          confidence: 'high',
-          title: `packageManager field ("${pmFieldNormalized}") mismatches lockfile ("${lockfileName}")`,
-          summary: `package.json specifies "${pmField}" but the repository contains "${lockfileName}".`,
-          file: 'package.json',
-          evidence: `packageManager: "${pmField}" vs lockfile: "${lockfileName}"`,
-          whyItMatters:
-            'Mismatch between the declared packageManager and the lockfile can cause Corepack or deployment engines to fail or install mismatched dependencies.',
-          remediation:
-            `Align package.json "packageManager" with the actual lockfile (${lockfileName}) or regenerate the lockfile with ${pmFieldNormalized}.`,
-          deploymentImpact: 'risk',
-        });
-      }
+  if (pmField && uniqueLockfiles.length > 0) {
+    const pmFieldNormalized = pmField.split('@')[0]!;
+    const hasMatchingLockfile = uniqueLockfiles.some((l) => {
+      const lockfileInfo = LOCKFILE_MANAGERS.find((m) => m.file === l);
+      return lockfileInfo?.manager === pmFieldNormalized;
+    });
+
+    if (!hasMatchingLockfile) {
+      findings.push({
+        code: 'PACKAGE_MANAGER_MISMATCH',
+        category: 'configuration',
+        severity: 'medium',
+        confidence: 'high',
+        title: `packageManager field ("${pmFieldNormalized}") mismatches lockfile(s)`,
+        summary: `package.json specifies "${pmField}" but no matching lockfile was found (found: ${uniqueLockfiles.join(', ')}).`,
+        file: 'package.json',
+        evidence: `packageManager: "${pmField}" vs lockfiles: "${uniqueLockfiles.join(', ')}"`,
+        whyItMatters:
+          'Mismatch between the declared packageManager and the lockfile can cause Corepack or deployment engines to fail or install mismatched dependencies.',
+        remediation:
+          `Align package.json "packageManager" with the actual lockfile (${uniqueLockfiles.join(', ')}) or regenerate the lockfile with ${pmFieldNormalized}.`,
+        deploymentImpact: 'risk',
+      });
     }
   }
 

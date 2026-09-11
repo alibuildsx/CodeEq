@@ -11,11 +11,21 @@ function isTestOrDocFile(relPath: string): boolean {
     normalized.includes('__mocks__/') ||
     normalized.includes('.test.') ||
     normalized.includes('.spec.') ||
+    normalized.includes('/test-fixtures/') ||
+    normalized.includes('/fixtures/') ||
+    normalized.startsWith('fixtures/') ||
+    normalized.includes('/docs/') ||
+    normalized.startsWith('docs/') ||
+    normalized.includes('/examples/') ||
+    normalized.startsWith('examples/') ||
+    normalized.includes('.sample.') ||
+    normalized.endsWith('.sample') ||
     normalized.endsWith('.md') ||
     normalized.endsWith('.txt') ||
     normalized.endsWith('.example')
   );
 }
+
 
 const JS_TS_EXTENSIONS = new Set([
   '.ts',
@@ -134,7 +144,7 @@ export async function detectVibeCodeFindings(
       apiClientFiles.add(relPath);
     }
 
-    // ── 4. Placeholder / Mock Values ──
+    // ── 4. Placeholder / Mock Values (only in string literals) ──
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
@@ -144,29 +154,39 @@ export async function detectVibeCodeFindings(
         continue;
       }
 
-      for (const pattern of PLACEHOLDER_PATTERNS) {
-        const match = pattern.exec(line);
-        if (match) {
-          findings.push({
-            code: 'PLACEHOLDER_VALUE_LEFTOVER',
-            category: 'code-health',
-            severity: 'low',
-            confidence: 'medium',
-            title: `Placeholder or mock value found in source: "${match[1]}"`,
-            summary: `File ${relPath}:${lineNum} contains template placeholder value "${match[1]}".`,
-            file: relPath,
-            line: lineNum,
-            evidence: match[1],
-            whyItMatters:
-              'Template placeholder strings left in production code can lead to broken third-party integrations or invalid dummy communications.',
-            remediation: 'Replace placeholder values with real configurations or environment variables.',
-            deploymentImpact: 'none',
-          });
-          break; // One placeholder finding per line
+      const stringLiteralRegex = /['"`]([^'"`\r\n]{3,})['"`]/g;
+      let strMatch: RegExpExecArray | null;
+      let foundOnLine = false;
+
+
+      while (!foundOnLine && (strMatch = stringLiteralRegex.exec(line)) !== null) {
+        const stringVal = strMatch[1]!;
+        for (const pattern of PLACEHOLDER_PATTERNS) {
+          const match = pattern.exec(stringVal);
+          if (match) {
+            findings.push({
+              code: 'PLACEHOLDER_VALUE_LEFTOVER',
+              category: 'code-health',
+              severity: 'low',
+              confidence: 'medium',
+              title: `Placeholder or mock value found in source: "${match[1]}"`,
+              summary: `File ${relPath}:${lineNum} contains template placeholder value "${match[1]}".`,
+              file: relPath,
+              line: lineNum,
+              evidence: match[1],
+              whyItMatters:
+                'Template placeholder strings left in production code can lead to broken third-party integrations or invalid dummy communications.',
+              remediation: 'Replace placeholder values with real configurations or environment variables.',
+              deploymentImpact: 'none',
+            });
+            foundOnLine = true;
+            break;
+          }
         }
       }
     }
   }
+
 
   // Aggregate Multiple Supabase Clients
   if (supabaseClientFiles.size >= 2) {

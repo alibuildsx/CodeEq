@@ -24,10 +24,18 @@ function isTestOrDocFile(filePath: string): boolean {
     normalized.includes('__mocks__/') ||
     normalized.includes('.test.') ||
     normalized.includes('.spec.') ||
+    normalized.includes('/test-fixtures/') ||
+    normalized.includes('/fixtures/') ||
+    normalized.startsWith('fixtures/') ||
+    normalized.includes('/docs/') ||
+    normalized.startsWith('docs/') ||
+    normalized.includes('/examples/') ||
+    normalized.startsWith('examples/') ||
     normalized.endsWith('.md') ||
     normalized.endsWith('.txt')
   );
 }
+
 
 // ─── Secret Patterns ──────────────────────────────────────────────────────────
 
@@ -135,22 +143,24 @@ export async function detectSecurityFindings(
   // ── 2. Tracked env files in git ──
   const trackedEnvFiles = await checkTrackedEnvFiles(targetDir);
   for (const trackedFile of trackedEnvFiles) {
+    const normalizedFile = trackedFile.split(path.sep).join('/');
     findings.push({
-      code: 'ENV_FILE_TRACKED_IN_GIT',
+      code: 'ENV_FILE_TRACKED',
       category: 'security',
       severity: 'critical',
       confidence: 'high',
-      title: `Environment file is tracked in Git index: ${trackedFile}`,
-      summary: `"${trackedFile}" appears to be committed or tracked in source control.`,
-      file: trackedFile,
-      evidence: `Git tracking confirmed: ${trackedFile}`,
+      title: `Environment file is tracked in Git repository: ${normalizedFile}`,
+      summary: `"${normalizedFile}" appears to be committed or tracked in source control.`,
+      file: normalizedFile,
+      evidence: `Git tracking confirmed: ${normalizedFile}`,
       whyItMatters:
         'Committed environment files are permanently recorded in git history, accessible to anyone with repository access.',
       remediation:
-        `Remove "${trackedFile}" from git with "git rm --cached ${trackedFile}", add it to .gitignore, and rotate secrets.`,
+        `Remove "${normalizedFile}" from git with "git rm --cached ${normalizedFile}", add it to .gitignore, and rotate secrets.`,
       deploymentImpact: 'risk',
     });
   }
+
 
   // ── 3. Supabase service role leak ──
   const supabaseResult = await detectSupabase(targetDir, deps);

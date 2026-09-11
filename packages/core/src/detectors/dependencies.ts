@@ -63,10 +63,36 @@ const JS_TS_EXTENSIONS = new Set([
 
 const IMPORT_REQUIRE_REGEX = /(?:import\s+(?:[\w*\s{},]*from\s+)?|export\s+(?:[\w*\s{},]*from\s+)?|require\s*\(\s*)['"]([^'"]+)['"]/g;
 
-function getPackageName(specifier: string): string | null {
+async function getTsConfigAliases(targetDir: string): Promise<string[]> {
+  const aliases: string[] = [];
+  for (const configName of ['tsconfig.json', 'jsconfig.json']) {
+    try {
+      const raw = await fs.readFile(path.join(targetDir, configName), 'utf-8');
+      const parsed = JSON.parse(raw);
+      const paths = parsed.compilerOptions?.paths;
+      if (paths && typeof paths === 'object') {
+        for (const key of Object.keys(paths)) {
+          const prefix = key.replace(/\/\*$/, '').replace(/\*$/, '');
+          if (prefix) aliases.push(prefix);
+        }
+      }
+    } catch {
+      // Ignore parse or access failure
+    }
+  }
+  return aliases;
+}
+
+function getPackageName(specifier: string, aliases: string[] = []): string | null {
   if (specifier.startsWith('node:')) return null;
   if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('\\')) return null;
   if (specifier.startsWith('@/') || specifier.startsWith('~/') || specifier.startsWith('#') || specifier.startsWith('$')) return null;
+
+  for (const alias of aliases) {
+    if (specifier === alias || specifier.startsWith(alias + '/')) {
+      return null;
+    }
+  }
 
   if (specifier.startsWith('@')) {
     const parts = specifier.split('/');
@@ -91,6 +117,8 @@ export async function detectDependencyFindings(
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
   const pkg = await readPackageJson(targetDir);
+  const aliases = await getTsConfigAliases(targetDir);
+
 
   const prodDeps = pkg?.dependencies ?? {};
   const devDeps = pkg?.devDependencies ?? {};
@@ -164,7 +192,7 @@ export async function detectDependencyFindings(
       let match: RegExpExecArray | null;
       while ((match = IMPORT_REQUIRE_REGEX.exec(line)) !== null) {
         const specifier = match[1]!;
-        const pkgName = getPackageName(specifier);
+        const pkgName = getPackageName(specifier, aliases);
         if (pkgName && !allDeclaredDeps.has(pkgName) && !reportedMissing.has(pkgName)) {
           reportedMissing.add(pkgName);
           findings.push({

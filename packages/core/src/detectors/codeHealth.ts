@@ -22,10 +22,37 @@ function isTestOrDocFile(relPath: string): boolean {
     normalized.includes('__mocks__/') ||
     normalized.includes('.test.') ||
     normalized.includes('.spec.') ||
+    normalized.includes('/test-fixtures/') ||
+    normalized.includes('/fixtures/') ||
+    normalized.startsWith('fixtures/') ||
+    normalized.includes('/docs/') ||
+    normalized.startsWith('docs/') ||
+    normalized.includes('/examples/') ||
+    normalized.startsWith('examples/') ||
     normalized.endsWith('.md') ||
     normalized.endsWith('.txt')
   );
 }
+
+function getScriptKind(filePath: string): ts.ScriptKind {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.ts':
+    case '.mts':
+      return ts.ScriptKind.TS;
+    case '.tsx':
+      return ts.ScriptKind.TSX;
+    case '.js':
+    case '.mjs':
+    case '.cjs':
+      return ts.ScriptKind.JS;
+    case '.jsx':
+      return ts.ScriptKind.JSX;
+    default:
+      return ts.ScriptKind.Unknown;
+  }
+}
+
 
 const JS_TS_EXTENSIONS = new Set([
   '.ts',
@@ -106,8 +133,17 @@ export async function detectCodeHealthFindings(
     }
 
     // ── 2. Syntax / Parse errors (safe static parse via TypeScript compiler API) ──
-    const sf = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
-    const parseDiags = (sf as unknown as { parseDiagnostics?: ts.Diagnostic[] }).parseDiagnostics;
+    const sf = ts.createSourceFile(
+      filePath,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      getScriptKind(filePath),
+    );
+    const parseDiags =
+      (sf as unknown as { parseDiagnostics?: ts.Diagnostic[] }).parseDiagnostics ??
+      (ts as unknown as { getParseDiagnostics?: (s: ts.SourceFile) => ts.Diagnostic[] }).getParseDiagnostics?.(sf) ??
+      [];
     if (parseDiags && parseDiags.length > 0) {
       // Report first error to avoid cascade
       const diag = parseDiags[0]!;
@@ -166,39 +202,53 @@ export async function detectCodeHealthFindings(
       }
 
       // ── Unresolved local relative imports ──
-      IMPORT_REGEX.lastIndex = 0;
-      let importMatch: RegExpExecArray | null;
-      while ((importMatch = IMPORT_REGEX.exec(line)) !== null) {
-        const specifier = importMatch[1]!;
-        if (specifier.startsWith('.')) {
-          const baseDir = path.dirname(filePath);
-          const targetBase = path.resolve(baseDir, specifier);
-          let resolved = false;
+      if (!isTest) {
+        IMPORT_REGEX.lastIndex = 0;
+        let importMatch: RegExpExecArray | null;
+        while ((importMatch = IMPORT_REGEX.exec(line)) !== null) {
+          const specifier = importMatch[1]!;
+          if (specifier.startsWith('.')) {
+            const baseDir = path.dirname(filePath);
+            const targetBase = path.resolve(baseDir, specifier);
+            let resolved = false;
 
-          for (const suffix of IMPORT_CANDIDATE_SUFFIXES) {
-            const candidate = (targetBase + suffix).split('/').join(path.sep);
-            if (await fileExists(candidate)) {
-              resolved = true;
-              break;
+            const candidates: string[] = IMPORT_CANDIDATE_SUFFIXES.map((s) => path.normalize(targetBase + s));
+            if (specifier.endsWith('.js')) {
+              const baseWithoutExt = targetBase.slice(0, -3);
+              candidates.push(
+                path.normalize(baseWithoutExt + '.ts'),
+                path.normalize(baseWithoutExt + '.tsx'),
+                path.normalize(baseWithoutExt + '.mts'),
+              );
+            } else if (specifier.endsWith('.mjs')) {
+              const baseWithoutExt = targetBase.slice(0, -4);
+              candidates.push(path.normalize(baseWithoutExt + '.mts'));
             }
-          }
 
-          if (!resolved) {
-            findings.push({
-              code: 'UNRESOLVED_LOCAL_IMPORT',
-              category: 'code-health',
-              severity: 'high',
-              confidence: 'high',
-              title: `Unresolved local import in ${relPath}:${lineNum}`,
-              summary: `Cannot find module "${specifier}" referenced from ${relPath}.`,
-              file: relPath,
-              line: lineNum,
-              evidence: `Unresolved import: ${specifier}`,
-              whyItMatters:
-                'Broken relative imports prevent bundlers from completing the build and will crash during build or runtime.',
-              remediation: `Verify the relative path "${specifier}" exists or update the import target.`,
-              deploymentImpact: 'blocking',
-            });
+            for (const candidate of candidates) {
+              if (await fileExists(candidate)) {
+                resolved = true;
+                break;
+              }
+            }
+
+            if (!resolved) {
+              findings.push({
+                code: 'UNRESOLVED_LOCAL_IMPORT',
+                category: 'code-health',
+                severity: 'high',
+                confidence: 'high',
+                title: `Unresolved local import in ${relPath}:${lineNum}`,
+                summary: `Cannot find module "${specifier}" referenced from ${relPath}.`,
+                file: relPath,
+                line: lineNum,
+                evidence: `Unresolved import: ${specifier}`,
+                whyItMatters:
+                  'Broken relative imports prevent bundlers from completing the build and will crash during build or runtime.',
+                remediation: `Verify the relative path "${specifier}" exists or update the import target.`,
+                deploymentImpact: 'blocking',
+              });
+            }
           }
         }
       }
