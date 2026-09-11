@@ -13,6 +13,7 @@ const PackageJsonSchema = z.object({
   dependencies: z.record(z.string()).optional().default({}),
   devDependencies: z.record(z.string()).optional().default({}),
   peerDependencies: z.record(z.string()).optional().default({}),
+  optionalDependencies: z.record(z.string()).optional().default({}),
 });
 
 export type ParsedPackageJson = z.infer<typeof PackageJsonSchema>;
@@ -41,13 +42,14 @@ export async function readPackageJson(
 }
 
 /**
- * Merges prod + dev + peer dependencies into a single flat map.
+ * Merges prod + dev + peer + optional dependencies into a single flat map.
  */
 export function mergeDependencies(pkg: ParsedPackageJson): Record<string, string> {
   return {
     ...pkg.dependencies,
     ...pkg.devDependencies,
     ...pkg.peerDependencies,
+    ...pkg.optionalDependencies,
   };
 }
 
