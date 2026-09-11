@@ -3,7 +3,12 @@
 import path from 'node:path';
 import { Command } from 'commander';
 import type { ScanResult, Severity } from '@codeeq/core';
-import { executeScan, formatJsonOutput, resolveDefaultScanDirectory } from './scanCommand.js';
+import { computeExitCode, executeScan, formatJsonOutput, resolveDefaultScanDirectory } from './scanCommand.js';
+
+
+
+
+
 
 // ─── Version ──────────────────────────────────────────────────────────────────
 
@@ -160,12 +165,8 @@ async function runScan(directory: string, options: CliScanOptions): Promise<void
     printSummary(execution.result, execution.reportWritten);
   }
 
-  // Exit with non-zero code if any critical issues found
-  const findings = execution.result.findings ?? execution.result.issues ?? [];
-  const hasCritical = findings.some((i) => i.severity === 'critical');
-  if (hasCritical) {
-    process.exitCode = 1;
-  }
+  // Exit with non-zero code if deployment is blocked
+  process.exitCode = computeExitCode(execution.result.deploymentReadiness);
 }
 
 // ─── Commander setup ──────────────────────────────────────────────────────────

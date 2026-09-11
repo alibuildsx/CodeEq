@@ -50,3 +50,8 @@ export async function executeScan(
 export function formatJsonOutput(result: ScanResult): string {
   return JSON.stringify(result, null, 2);
 }
+
+export function computeExitCode(readiness: ScanResult['deploymentReadiness']): number {
+  return readiness === 'Blocked' ? 1 : 0;
+}
+

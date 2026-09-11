@@ -72,14 +72,14 @@ describe('scanProject M2 CP2 diagnostic engine', () => {
     expect(result.issues).toBe(result.findings);
 
     // Health and category scores check
-    expect(result.healthScore).toBe(85);
-    expect(result.health.overall).toBe(85);
+    expect(result.healthScore).toBe(97);
+    expect(result.health.overall).toBe(97);
     expect(result.health.categories).toEqual({
       security: 100,
-      configuration: 90, // -10 for ENV_NO_EXAMPLE
+      configuration: 92, // 100 - 8 (medium: ENV_NO_EXAMPLE)
       codeHealth: 100,
       dependencies: 100,
-      deployment: 95,   // -5 for MISSING_START_SCRIPT
+      deployment: 89,   // 100 - 3 (low: MISSING_START_SCRIPT) - 8 (risk: ENV_NO_EXAMPLE)
     });
 
     expect(result.deploymentReadiness).toBe('Needs attention');
@@ -104,7 +104,7 @@ describe('scanProject M2 CP2 diagnostic engine', () => {
     const jsonStr = JSON.stringify(result);
     const parsed = JSON.parse(jsonStr);
     expect(parsed.schemaVersion).toBe('1.0');
-    expect(parsed.health.categories.configuration).toBe(90);
+    expect(parsed.health.categories.configuration).toBe(92);
     expect(parsed.findings).toHaveLength(result.findings.length);
     expect(parsed.projectInfo.router).toBe('app');
   });
