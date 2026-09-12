@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
-import { scanProject, generateMarkdownReport } from '@project-safety/core';
-import type { ScanResult, Severity } from '@project-safety/core';
+import type { ScanResult, Severity } from '@codeeq/core';
+import { computeExitCode, executeScan, formatJsonOutput, resolveDefaultScanDirectory } from './scanCommand.js';
+
+
+
+
+
 
 // ─── Version ──────────────────────────────────────────────────────────────────
 
-const VERSION = '0.1.0';
+const VERSION = '1.0.0';
 
 // ─── Terminal colours (ANSI) ──────────────────────────────────────────────────
 
@@ -59,14 +63,15 @@ function padRight(str: string, len: number): string {
   return str + ' '.repeat(Math.max(0, len - str.length));
 }
 
-function printSummary(result: ScanResult): void {
-  const { projectInfo: info, issues, reportPath } = result;
+function printSummary(result: ScanResult, reportWritten: boolean): void {
+  const { projectInfo: info, reportPath } = result;
+  const findings = result.findings ?? result.issues ?? [];
 
   const counts: Record<Severity, number> = {
-    critical: issues.filter((i) => i.severity === 'critical').length,
-    high:     issues.filter((i) => i.severity === 'high').length,
-    medium:   issues.filter((i) => i.severity === 'medium').length,
-    low:      issues.filter((i) => i.severity === 'low').length,
+    critical: findings.filter((i) => i.severity === 'critical').length,
+    high:     findings.filter((i) => i.severity === 'high').length,
+    medium:   findings.filter((i) => i.severity === 'medium').length,
+    low:      findings.filter((i) => i.severity === 'low').length,
   };
 
   const stack = `${info.language === 'typescript' ? 'TypeScript' : 'JavaScript'} + ${info.packageManager}`;
@@ -87,8 +92,8 @@ function printSummary(result: ScanResult): void {
   const top     = `┌${'─'.repeat(W)}┐`;
   const bottom  = `└${'─'.repeat(W)}┘`;
 
-  const titleStr = '  🛡️  project-safety scan results';
-  const titlePad = ' '.repeat(Math.max(0, W - '  🛡️  project-safety scan results'.length));
+  const titleStr = '  🛡️  codeeq scan results';
+  const titlePad = ' '.repeat(Math.max(0, W - '  🛡️  codeeq scan results'.length));
 
   console.log('');
   console.log(`${c.cyan}${top}${c.reset}`);
@@ -97,6 +102,8 @@ function printSummary(result: ScanResult): void {
   console.log(`${c.cyan}${row('Project:  ', info.name)}${c.reset}`);
   console.log(`${c.cyan}${row('Framework:', framework)}${c.reset}`);
   console.log(`${c.cyan}${row('Stack:    ', stack)}${c.reset}`);
+  console.log(`${c.cyan}${row('Score:    ', `${result.healthScore} / 100`)}${c.reset}`);
+  console.log(`${c.cyan}${row('Readiness:', result.deploymentReadiness)}${c.reset}`);
   console.log(`${c.cyan}${divider}${c.reset}`);
 
   const severities: Severity[] = ['critical', 'high', 'medium', 'low'];
@@ -114,9 +121,10 @@ function printSummary(result: ScanResult): void {
   console.log(`${c.cyan}${divider}${c.reset}`);
 
   const reportLabel = 'Report:   ';
-  const reportVal = relReport.length > W - reportLabel.length - 4
-    ? '...' + relReport.slice(-(W - reportLabel.length - 7))
-    : relReport;
+  const reportDisplay = reportWritten ? relReport : 'Not written (--no-write)';
+  const reportVal = reportDisplay.length > W - reportLabel.length - 4
+    ? '...' + reportDisplay.slice(-(W - reportLabel.length - 7))
+    : reportDisplay;
   console.log(`${c.cyan}${row(reportLabel, reportVal)}${c.reset}`);
   console.log(`${c.cyan}${bottom}${c.reset}`);
   console.log('');
@@ -124,39 +132,41 @@ function printSummary(result: ScanResult): void {
 
 // ─── Scan command ─────────────────────────────────────────────────────────────
 
-async function runScan(directory: string): Promise<void> {
+interface CliScanOptions {
+  write: boolean;
+  json?: boolean;
+  report?: string;
+}
+
+async function runScan(directory: string, options: CliScanOptions): Promise<void> {
   const targetDir = path.resolve(directory);
 
-  console.log(`\n${c.cyan}${c.bold}project-safety${c.reset} ${c.dim}v${VERSION}${c.reset}`);
-  console.log(`${c.dim}Scanning: ${targetDir}${c.reset}\n`);
+  if (!options.json) {
+    console.log(`\n${c.cyan}${c.bold}codeeq${c.reset} ${c.dim}v${VERSION}${c.reset}`);
+    console.log(`${c.dim}Scanning: ${targetDir}${c.reset}\n`);
+  }
 
-  let result: ScanResult;
+  let execution: Awaited<ReturnType<typeof executeScan>>;
   try {
-    result = await scanProject(targetDir);
+    execution = await executeScan(targetDir, {
+      write: options.write,
+      report: options.report,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`${c.red}✖ Scan failed: ${message}${c.reset}`);
-    process.exit(1);
+    console.error(options.json ? JSON.stringify({ error: message }) : `${c.red}✖ Scan failed: ${message}${c.reset}`);
+    process.exitCode = 1;
+    return;
   }
 
-  // Write Markdown report
-  const report = generateMarkdownReport(result);
-  try {
-    await fs.writeFile(result.reportPath, report, 'utf-8');
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`${c.red}✖ Failed to write report: ${message}${c.reset}`);
-    process.exit(1);
+  if (options.json) {
+    console.log(formatJsonOutput(execution.result));
+  } else {
+    printSummary(execution.result, execution.reportWritten);
   }
 
-  // Print terminal summary
-  printSummary(result);
-
-  // Exit with non-zero code if any critical issues found
-  const hasCritical = result.issues.some((i) => i.severity === 'critical');
-  if (hasCritical) {
-    process.exit(1);
-  }
+  // Exit with non-zero code if deployment is blocked
+  process.exitCode = computeExitCode(execution.result.deploymentReadiness);
 }
 
 // ─── Commander setup ──────────────────────────────────────────────────────────
@@ -164,7 +174,7 @@ async function runScan(directory: string): Promise<void> {
 const program = new Command();
 
 program
-  .name('project-safety')
+  .name('codeeq')
   .description('Local-first project health scanner for vibe coders')
   .version(VERSION, '-v, --version', 'Output the current version');
 
@@ -174,8 +184,12 @@ program
     'Scan a project directory and generate a health report. ' +
     'Defaults to the current working directory.',
   )
-  .action(async (directory: string | undefined) => {
-    await runScan(directory ?? process.cwd());
+  .option('--no-write', 'Do not write a Markdown report')
+  .option('--json', 'Print the scan result as JSON')
+  .option('--report <path>', 'Write the Markdown report to a custom path')
+  .action(async (directory: string | undefined, options: CliScanOptions) => {
+    const defaultDirectory = resolveDefaultScanDirectory(process.cwd(), process.env['INIT_CWD']);
+    await runScan(directory ?? defaultDirectory, options);
   });
 
 program.parse(process.argv);

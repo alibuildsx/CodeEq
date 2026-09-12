@@ -1,0 +1,12 @@
+{
+  "name": "messy-vibe-project",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^5.0.0",
+    "next-auth": "^4.24.0",
+    "@supabase/supabase-js": "^2.43.0"
+  }
+}

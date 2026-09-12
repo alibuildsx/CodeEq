@@ -1,157 +1,230 @@
-# 🛡️ project-safety-layer
+# CodeEq
 
-> **Version 0.1** — Local-first project health scanner for vibe coders.
+> **Balance your AI-built code.**  
+> *Concept: Vibe Coding Doctor*
 
-Scan any local web project and get an instant health report: detected framework, package manager, env file safety, Supabase key leaks, and more. No cloud calls. No data leaves your machine.
-
----
-
-## ✨ Features (v0.1)
-
-| Category | What it detects |
-|----------|----------------|
-| **Project Info** | Name, framework, language, package manager |
-| **File Presence** | `src/`, `app/`, `pages/`, `.env`, `.env.local`, `.env.example`, `.gitignore`, `vercel.json` |
-| **Env Safety** | `.env` / `.env.local` not in `.gitignore` |
-| **Secret Leaks** | Supabase `service_role` key in source files |
-| **NEXT_PUBLIC_** | Variables whose names look like private secrets |
-| **Build Config** | Missing `build` script in `package.json` |
-| **Next.js** | Missing `next.config.*` file (low severity warning) |
+CodeEq is a local-first and web-based static project health scanner designed for AI-assisted and "vibe-coded" applications. It inspects your project, understands its architecture, detects critical issues across security, configuration, dependencies, and code health, and gives the project an unambiguous health and deployment-readiness assessment.
 
 ---
 
-## 📦 Monorepo Structure
+## Why CodeEq?
 
+Generative AI coding tools (Claude, Cursor, Copilot, ChatGPT, v0) allow developers to build full-stack web applications at unprecedented velocity. However, velocity often comes with hidden risks:
+
+* **Exposed Credentials**: Accidental commits of `.env` files, leaked Supabase service-role keys, or client-exposed API secrets.
+* **Broken Modules & Imports**: Hallucinated imports, missing source files, and broken relative paths that silently pass until runtime.
+* **Misconfiguration**: Missing `.env.example` templates, unconfigured build scripts, and omitted gitignore entries that cause CI/CD deployments to fail.
+* **Undeclared Dependencies**: Packages imported in code but missing from `package.json`, or monorepo workspace boundary leaks.
+* **Vibe-Code Debt**: Piles of `TODO` markers, hardcoded `http://localhost` URLs in production pathways, and duplicate files.
+
+CodeEq acts as a **Vibe Coding Doctor**—diagnosing these problems before you ship, explaining *why* they matter in plain English, and providing actionable remediation steps.
+
+---
+
+## How It Works
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│          GitHub Repository  or  Local File System           │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │        CodeEq Core          │
+                │     @codeeq/core engine     │
+                └──────────────┬──────────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │    Project Intelligence     │
+                │  (Framework, Lang, Router)  │
+                └──────────────┬──────────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │      Diagnostic Engine      │
+                │  (5 Categories / Heuristics)│
+                └──────────────┬──────────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │ Health + Readiness Engine   │
+                │  (Score 0-100 & Ready/Block)│
+                └──────────────┬──────────────┘
+                               │
+        ┌──────────────────────┴──────────────────────┐
+        │                                             │
+┌───────▼──────────────┐                    ┌─────────▼───────────┐
+│     Developer CLI    │                    │ Portfolio Dashboard │
+│ (Terminal, MD, JSON) │                    │ (Interactive Web UI)│
+└──────────────────────┘                    └─────────────────────┘
 ```
-packages/
-├── core/          @project-safety/core — all scanner + report logic
-└── cli/           project-safety-cli   — Commander CLI wrapper
+
+---
+
+## What CodeEq Detects
+
+CodeEq groups diagnostics into five clear categories:
+
+| Category | Description & Representative Checks |
+| :--- | :--- |
+| **Security** | Leaked Supabase service-role keys, unignored `.env` / `.env.local` files, sensitive credential variable naming, exposed secrets. |
+| **Configuration** | Missing `.env.example` templates, missing or broken `build` / `start` scripts, missing `next.config.*`, missing `.gitignore`. |
+| **Code Health** | Unresolved local relative imports, missing target source files, unparseable JavaScript/TypeScript syntax errors. |
+| **Dependencies** | Undeclared package imports (missing from `package.json`), monorepo package boundary violations, conflicting lockfiles. |
+| **Vibe-Code Heuristics** | Excessive unfinished code markers (`TODO`, `FIXME`, `HACK`), hardcoded localhost URLs, duplicate files. |
+| **Deployment Readiness** | Synthesized deployment status (`Ready`, `Needs attention`, `Blocked`) to prevent broken production deployments. |
+
+---
+
+## Finding Model (Finding V2)
+
+Every issue detected by CodeEq provides a complete, structured diagnosis:
+
+```markdown
+### 🔴 Critical — SUPABASE_SERVICE_ROLE_LEAKED
+* **Location**: `src/lib/supabaseClient.ts:4`
+* **Summary**: A likely Supabase service-role secret key assignment was detected in source code.
+* **Evidence**: `const supabase = createClient(url, 'eyJhbGciOiJIUzI1NiIsInR5cCI6...')`
+* **Why It Matters**: Service-role keys bypass Row Level Security (RLS) entirely. If bundled into client-side code, any user can read, modify, or delete your entire database.
+* **Deployment Impact**: `blocking` — Do not deploy this project to production.
+* **Recommended Fix**: Move service-role operations to a secure server-side API route or edge function, and reference the key via a non-public environment variable.
 ```
 
 ---
 
-## 🚀 Setup
+## Health Scoring & Readiness
 
-### Prerequisites
+CodeEq calculates a deterministic health score from **0 to 100**:
+* Every scan starts at **100**.
+* **Per-category deductions**: `Critical`: -25 pts | `High`: -15 pts | `Medium`: -8 pts | `Low`: -3 pts. The overall score is the weighted result of the five category scores, with additional deployment-impact deductions in the deployment category.
+* Independent scores are calculated across all five categories: **Security**, **Configuration**, **Code Health**, **Dependencies**, and **Deployment**.
 
-- Node.js ≥ 18
-- pnpm ≥ 8 ([install](https://pnpm.io/installation))
+### Static Deployment Readiness
+* 🟢 **Ready**: Zero blocking or risky static findings. Build, test, and runtime verification are still required.
+* 🟡 **Needs attention**: Non-critical warnings (e.g. missing documentation or low-severity debt).
+* 🔴 **Blocked**: One or more critical/high severity findings or deployment-blocking issues exist.
 
-### Install & Build
+---
 
+## Web Scanner & Dashboard (`apps/web`)
+
+The CodeEq web application provides a browser-based repository health dashboard:
+
+1. **Input**: Paste any public GitHub URL (`https://github.com/owner/repo`) or shorthand (`owner/repo`).
+2. **Safe Static Scan**: The server downloads a temporary compressed archive, analyzes the code in an isolated temporary workspace, and purges all files upon completion.
+3. **Interactive Results**: Explore overall health, category breakdown, project intelligence grid, interactive severity filters, and slide-over finding drawers.
+
+> [!NOTE]
+> **Static Analysis Only**: CodeEq web scanner never executes target repository code, never runs build scripts, and never installs dependencies. Repositories are analyzed purely via static AST parsing and heuristic detectors.
+
+---
+
+## Local Developer CLI (`packages/cli`)
+
+Run CodeEq locally on your machine with zero external network communication:
+
+### Development Execution
 ```bash
-# Clone the repo and enter it
-cd project-safety-layer
+# Scan current directory and write PROJECT_HEALTH_REPORT.md
+pnpm --filter codeeq dev scan .
 
-# Install all workspace dependencies
-pnpm install
+# Scan another project directory
+pnpm --filter codeeq dev scan ../my-ai-app
 
-# Build both packages (TypeScript → dist/)
+# Print terminal summary without writing a Markdown report
+pnpm --filter codeeq dev scan --no-write
+
+# Output machine-readable JSON (ideal for CI/CD pipelines)
+pnpm --filter codeeq dev scan --json --no-write
+
+# Write report to a custom path
+pnpm --filter codeeq dev scan --report reports/HEALTH_AUDIT.md
+```
+
+### Production Binary Build
+```bash
+# Build all packages
 pnpm build
+
+# Run the compiled CLI
+node packages/cli/dist/index.js scan .
 ```
 
 ---
 
-## 🖥️ Usage
+## Tech Stack & Architecture
 
-### Development mode (no build needed)
+CodeEq is built as a typed monorepo using modern web technologies:
 
+* **Language**: TypeScript 5.x (strict mode; verified with 5.9.3)
+* **Runtime**: Node.js 18.18+ (tested with Node.js 24.18.0)
+* **Monorepo**: pnpm workspaces
+* **Frontend**: Next.js 15 (App Router), React 19, Vanilla CSS Design System
+* **CLI Engine**: Commander.js, Chalk-free zero-dependency ANSI styling
+* **Archive Engine**: `tar` (hardened stream extraction)
+* **Test Suite**: Vitest 2.1
+
+### Workspace Packages
+* [`packages/core`](packages/core): Pure diagnostic engine, AST parsers, detector registry, scoring algorithms, and report formatters. Zero network or CLI dependencies.
+* [`packages/cli`](packages/cli): Commander CLI application mapping scanner outputs to terminal displays, Markdown files, JSON streams, and POSIX exit codes.
+* [`apps/web`](apps/web): Next.js portfolio application featuring the public GitHub repository scanner backend and dark-first diagnostic dashboard.
+
+---
+
+## Security Architecture
+
+CodeEq is built under a **Zero-Execution, Zero-Trust** model:
+
+* **No Target Code Execution**: Source code is inspected purely via static Abstract Syntax Trees and regular expressions. No scripts, postinstall hooks, or builds are ever executed.
+* **SSRF Mitigation**: Public URL parsing strictly accepts `https://github.com/:owner/:repo`. Server-side requests use manual redirects with a three-hop cap and HTTPS host allowlists for GitHub API and codeload destinations.
+* **Archive Traversal Protection**: The tarball extractor verifies that every accepted entry resolves within the designated workspace and rejects links and special entries.
+* **Resource Quotas**: Hard quotas enforce a maximum 15 MB archive size, 75 MB extracted size, 5,000 files, a 15-second acquisition timeout, and a 30-second overall cooperative-cancellation timeout.
+* **Secret Redaction**: Detected secret keys are redacted at the capture point; raw secret values are never displayed in reports or UI components.
+* **Ephemeral Workspaces**: Scanned repositories are written to temporary OS directories with cryptographically random identifiers and are deleted in `finally` blocks immediately upon scan completion.
+
+*For complete threat modeling, see [docs/SECURITY.md](docs/SECURITY.md).*
+
+---
+
+## Automated Verification & Test Suite
+
+CodeEq features an extensive, offline, deterministic test suite:
+
+```text
+test files: 37
+tests:      321
+passing:    321
+failing:    0
+```
+
+### Suite Breakdown
+* **`@codeeq/core`**: 23 test files, 174 tests passing
+* **`codeeq` (CLI)**: 2 test files, 9 tests passing
+* **`codeeq-web`**: 12 test files, 138 tests passing
+
+Run the complete test suite locally:
 ```bash
-# Scan the current working directory
-pnpm --filter project-safety-cli dev scan
-
-# Scan a specific project
-pnpm --filter project-safety-cli dev scan /path/to/your/project
-pnpm --filter project-safety-cli dev scan ../my-nextjs-app
-```
-
-### After building
-
-```bash
-# Using the compiled bin
-node packages/cli/dist/index.js scan /path/to/project
-
-# Or link globally
-cd packages/cli
-npm link
-project-safety scan /path/to/project
-```
-
----
-
-## 📄 Output
-
-### Terminal Summary
-
-```
-┌─────────────────────────────────────────────┐
-│  🛡️  project-safety scan results             │
-├─────────────────────────────────────────────┤
-│  Project:   my-nextjs-app                   │
-│  Framework: Next.js                         │
-│  Stack:     TypeScript + pnpm               │
-├─────────────────────────────────────────────┤
-│  🔴 Critical      2                         │
-│  🟠 High          1                         │
-│  🟡 Medium        0                         │
-│  🔵 Low           1                         │
-├─────────────────────────────────────────────┤
-│  Report:    ./PROJECT_HEALTH_REPORT.md      │
-└─────────────────────────────────────────────┘
-```
-
-### Markdown Report
-
-A `PROJECT_HEALTH_REPORT.md` file is written to the scanned project's root directory. It contains:
-
-- Project info table
-- Issue summary table by severity
-- Full issue list with codes, titles, and fix guidance
-
----
-
-## 🔍 Issue Codes
-
-| Code | Severity | Trigger |
-|------|----------|---------|
-| `ENV_NOT_GITIGNORED` | 🔴 Critical | `.env` not in `.gitignore` |
-| `ENV_LOCAL_NOT_GITIGNORED` | 🔴 Critical | `.env.local` not in `.gitignore` |
-| `SUPABASE_SERVICE_ROLE_LEAKED` | 🔴 Critical | `service_role` text in source files |
-| `ENV_NO_EXAMPLE` | 🟠 High | `.env` exists but `.env.example` missing |
-| `NEXT_PUBLIC_LIKELY_SECRET` | 🟠 High | `NEXT_PUBLIC_*` var name looks like a secret |
-| `MISSING_BUILD_SCRIPT` | 🟡 Medium | No `build` script in `package.json` |
-| `NEXTJS_MISSING_CONFIG` | 🔵 Low | Next.js project without `next.config.*` |
-
----
-
-## 🧪 Tests
-
-```bash
-# Run all tests
 pnpm test
-
-# Run tests for core package only
-pnpm --filter @project-safety/core test
 ```
 
 ---
 
-## 🛣️ Roadmap
+## Known Limitations
 
-- **v0.2** — More detectors (exposed API keys, hardcoded URLs, missing `lint` script)
-- **v0.3** — VS Code extension integration
-- **v0.4** — MCP server for AI assistants
-- **v0.5** — Web dashboard
-
----
-
-## 📝 Notes
-
-- **No network calls** — everything runs locally.
-- **Non-destructive** — the scanner never modifies your project files.
-- **Exit codes** — exits with code `1` if any `critical` issues are found (useful in CI).
-- **Report location** — `PROJECT_HEALTH_REPORT.md` is written to the scanned directory and silently overwritten on each run.
+* **Static Analysis Scope**: CodeEq does not execute repository code or test suites. Vulnerabilities that depend on dynamic runtime state or external database contents are outside static scope.
+* **Ecosystem Focus**: Currently tailored for JavaScript and TypeScript ecosystems (Node.js, Next.js, Vite, React, Express).
+* **Public Repositories Only**: The online web scanner exclusively processes public GitHub repositories. Private repositories can be scanned locally using the CLI.
+* **GitHub Rate Limits**: Public unauthenticated web instances share GitHub's 60 req/hr public IP limit (expandable to 5,000 req/hr via server-side `GITHUB_TOKEN`).
+* **Cancellation Boundary**: Timeouts cooperatively abort acquisition, extraction, and scanner traversal and wait for temporary cleanup. A single long synchronous parser operation cannot be hard-preempted without moving analysis to a worker or process.
 
 ---
 
-*Built with TypeScript, pnpm workspaces, Commander, Zod, and Vitest.*
+## Future Roadmap
+
+* Private repository authentication via GitHub OAuth / GitHub Apps
+* Model Context Protocol (MCP) server for Claude Code and Cursor integration
+* Interactive VS Code extension for inline diagnostic gutter badges
+* Verified local Docker sandbox for dynamic build and test execution
+
+---
+
+## License
+
+MIT © [Ali Raza](https://github.com/alibuildsx)

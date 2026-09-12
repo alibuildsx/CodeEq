@@ -1,4 +1,8 @@
 packages:
   - 'packages/*'
+  - 'apps/*'
 allowBuilds:
   esbuild: true
+overrides:
+  postcss: 8.5.23
+  nanoid: 3.3.18

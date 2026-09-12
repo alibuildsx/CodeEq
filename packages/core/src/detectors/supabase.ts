@@ -1,24 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { shouldSkipDirectory } from '../analysis/exclusionPolicy.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-/**
- * Directories that are always skipped during source file scanning.
- * Prevents false positives from lockfiles, generated output, and vendor code.
- */
-const EXCLUDED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  '.output',
-  '.turbo',
-  'coverage',
-  '.cache',
-]);
 
 /**
  * File extensions scanned for secrets.
@@ -32,7 +16,11 @@ const SCANNABLE_EXTENSIONS = new Set([
   '.mts',
   '.mjs',
   '.cjs',
+  '.cts',
   '.json',
+  '.pem',
+  '.key',
+  '.cert',
   '.env',
   '.env.local',
   '.env.production',
@@ -87,10 +75,14 @@ const SKIP_LINE_PREFIXES = [
  * Recursively collects all scannable file paths under `dir`,
  * honouring the exclusion lists.
  */
-async function collectScannableFiles(dir: string): Promise<string[]> {
+async function collectScannableFiles(
+  dir: string,
+  options?: { signal?: AbortSignal },
+): Promise<string[]> {
   const results: string[] = [];
 
   async function walk(current: string): Promise<void> {
+    options?.signal?.throwIfAborted();
     let names: string[];
     try {
       names = await fs.readdir(current);
@@ -100,16 +92,19 @@ async function collectScannableFiles(dir: string): Promise<string[]> {
 
     await Promise.all(
       names.map(async (name) => {
+        options?.signal?.throwIfAborted();
         const fullPath = path.join(current, name);
-        let stat: Awaited<ReturnType<typeof fs.stat>>;
+        let stat: Awaited<ReturnType<typeof fs.lstat>>;
         try {
-          stat = await fs.stat(fullPath);
+          stat = await fs.lstat(fullPath);
         } catch {
           return; // broken symlink or race condition — skip
         }
 
+        if (stat.isSymbolicLink()) return;
+
         if (stat.isDirectory()) {
-          if (!EXCLUDED_DIRS.has(name)) {
+          if (!shouldSkipDirectory(name)) {
             await walk(fullPath);
           }
           return;
@@ -149,15 +144,20 @@ export interface SupabaseDetectionResult {
 export async function detectSupabase(
   targetDir: string,
   deps: Record<string, string>,
+  options?: {
+    files?: string[];
+    signal?: AbortSignal;
+  },
 ): Promise<SupabaseDetectionResult> {
   const depNames = Object.keys(deps);
   const usesSupabase =
     depNames.some((d) => d.startsWith('@supabase/')) ||
     depNames.includes('supabase');
 
-  const files = await collectScannableFiles(targetDir);
+  const files = options?.files ?? (await collectScannableFiles(targetDir, { signal: options?.signal }));
 
   for (const filePath of files) {
+    options?.signal?.throwIfAborted();
     try {
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n');

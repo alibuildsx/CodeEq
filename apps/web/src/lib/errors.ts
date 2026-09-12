@@ -1,0 +1,108 @@
+export type ScanErrorCode =
+  | 'INVALID_GITHUB_URL'
+  | 'REPOSITORY_NOT_ACCESSIBLE'
+  | 'GITHUB_RATE_LIMITED'
+  | 'REPOSITORY_TOO_LARGE'
+  | 'ARCHIVE_DOWNLOAD_FAILED'
+  | 'REQUEST_TOO_LARGE'
+  | 'SCAN_TIMEOUT'
+  | 'SCAN_FAILED';
+
+export const KNOWN_SCAN_ERROR_CODES: readonly ScanErrorCode[] = [
+  'INVALID_GITHUB_URL',
+  'REPOSITORY_NOT_ACCESSIBLE',
+  'GITHUB_RATE_LIMITED',
+  'REPOSITORY_TOO_LARGE',
+  'ARCHIVE_DOWNLOAD_FAILED',
+  'REQUEST_TOO_LARGE',
+  'SCAN_TIMEOUT',
+  'SCAN_FAILED',
+];
+
+export function isScanErrorCode(code: unknown): code is ScanErrorCode {
+  return typeof code === 'string' && (KNOWN_SCAN_ERROR_CODES as readonly string[]).includes(code);
+}
+
+export const PUBLIC_SCAN_ERROR_MESSAGES: Readonly<Record<ScanErrorCode, string>> = {
+  INVALID_GITHUB_URL: 'Invalid GitHub repository URL',
+  REPOSITORY_NOT_ACCESSIBLE: 'Repository not found or not publicly accessible',
+  GITHUB_RATE_LIMITED: 'GitHub API rate limit exceeded',
+  REPOSITORY_TOO_LARGE: 'Repository exceeds size or file limit',
+  ARCHIVE_DOWNLOAD_FAILED: 'Failed to download or extract repository archive',
+  REQUEST_TOO_LARGE: 'Request body exceeds the allowed size',
+  SCAN_TIMEOUT: 'Repository scan timed out',
+  SCAN_FAILED: 'Repository analysis failed',
+};
+
+export class FrontendScanError extends Error {
+  readonly code: ScanErrorCode;
+  readonly statusCode: number;
+
+  constructor(code: ScanErrorCode, message: string, statusCode: number = 500) {
+    super(message);
+    this.name = 'FrontendScanError';
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
+export class ScanError extends Error {
+  readonly code: ScanErrorCode;
+  readonly statusCode: number;
+
+  constructor(code: ScanErrorCode, message: string, statusCode: number = 500) {
+    super(message);
+    this.name = 'ScanError';
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
+export class InvalidGitHubUrlError extends ScanError {
+  constructor(message: string = 'Invalid GitHub repository URL') {
+    super('INVALID_GITHUB_URL', message, 400);
+    this.name = 'InvalidGitHubUrlError';
+  }
+}
+
+export class RepositoryNotAccessibleError extends ScanError {
+  constructor(message: string = 'Repository not found or not publicly accessible') {
+    super('REPOSITORY_NOT_ACCESSIBLE', message, 404);
+    this.name = 'RepositoryNotAccessibleError';
+  }
+}
+
+export class GitHubRateLimitedError extends ScanError {
+  constructor(message: string = 'GitHub API rate limit exceeded') {
+    super('GITHUB_RATE_LIMITED', message, 429);
+    this.name = 'GitHubRateLimitedError';
+  }
+}
+
+export class RepositoryTooLargeError extends ScanError {
+  constructor(message: string = 'Repository exceeds size or file limit') {
+    super('REPOSITORY_TOO_LARGE', message, 413);
+    this.name = 'RepositoryTooLargeError';
+  }
+}
+
+export class ArchiveDownloadFailedError extends ScanError {
+  constructor(message: string = 'Failed to download repository archive') {
+    super('ARCHIVE_DOWNLOAD_FAILED', message, 502);
+    this.name = 'ArchiveDownloadFailedError';
+  }
+}
+
+export class RequestTooLargeError extends ScanError {
+  constructor(message: string = PUBLIC_SCAN_ERROR_MESSAGES.REQUEST_TOO_LARGE) {
+    super('REQUEST_TOO_LARGE', message, 413);
+    this.name = 'RequestTooLargeError';
+  }
+}
+
+export class ScanTimeoutError extends ScanError {
+  constructor(message: string = 'Scan operation timed out') {
+    super('SCAN_TIMEOUT', message, 504);
+    this.name = 'ScanTimeoutError';
+  }
+}

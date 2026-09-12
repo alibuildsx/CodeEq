@@ -1,0 +1,10 @@
+{
+  "name": "security-problems",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "express": "^4.19.0"
+  }
+}

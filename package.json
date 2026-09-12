@@ -1,10 +1,10 @@
 {
-  "name": "project-safety-layer",
-  "version": "0.1.0",
+  "name": "codeeq-monorepo",
+  "version": "1.0.0",
   "private": true,
-  "description": "Local-first CLI tool for vibe coders — scans a web project and generates a health report",
+  "description": "Balance your AI-built code — static project health scanner for AI/vibe-coded applications",
   "engines": {
-    "node": ">=18",
+    "node": ">=18.18.0",
     "pnpm": ">=8"
   },
   "scripts": {
