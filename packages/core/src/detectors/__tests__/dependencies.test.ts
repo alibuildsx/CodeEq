@@ -177,6 +177,37 @@ describe('detectDependencyFindings', () => {
     expect(undeclared.some((f) => f.evidence?.includes('lodash'))).toBe(true);
   });
 
+  it('handles workspace playground, tooling, virtual, and @types imports without hiding production leaks', async () => {
+    await write('package.json', JSON.stringify({
+      name: 'workspace-root',
+      private: true,
+      devDependencies: {
+        lodash: '^4.17.21',
+        typescript: '^5.9.0',
+        vite: '^7.0.0',
+        vitest: '^2.1.0',
+      },
+    }));
+    await write('packages/plugin/package.json', JSON.stringify({
+      name: '@workspace/plugin',
+      devDependencies: { '@types/estree': '^1.0.0' },
+    }));
+    await write('playground/demo/package.json', JSON.stringify({ name: 'demo', private: true }));
+    await write('playground/demo/vite.config.ts', 'import { defineConfig } from "vite";');
+    await write('packages/plugin/vitest.config.ts', 'import { defineConfig } from "vitest/config";');
+    await write('packages/plugin/scripts/generate.ts', 'import ts from "typescript";');
+    await write('packages/plugin/src/browser.ts', 'import client from "virtual:vite-client";');
+    await write('packages/plugin/src/types.ts', 'import type { Program } from "estree";');
+    await write('packages/plugin/src/runtime.ts', 'import lodash from "lodash";');
+
+    const findings = await detectDependencyFindings(tmpDir);
+    const undeclared = findings.filter((f) => f.code === 'UNDECLARED_DEPENDENCY');
+
+    expect(undeclared).toHaveLength(1);
+    expect(undeclared[0]?.evidence).toContain('lodash');
+    expect(undeclared[0]?.file).toBe('packages/plugin/src/runtime.ts');
+  });
+
   it('scoped dependency: preserves @scope/pkg/subpath -> @scope/pkg resolution', async () => {
     await write('packages/core/package.json', JSON.stringify({
       name: '@my/core',

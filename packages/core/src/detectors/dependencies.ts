@@ -92,6 +92,7 @@ async function getTsConfigAliases(targetDir: string): Promise<string[]> {
 
 function getPackageName(specifier: string, aliases: string[] = []): string | null {
   if (specifier.startsWith('node:')) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(specifier)) return null;
   if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('\\')) return null;
   if (specifier.startsWith('@/') || specifier.startsWith('~/') || specifier.startsWith('#') || specifier.startsWith('$')) return null;
 
@@ -112,6 +113,20 @@ function getPackageName(specifier: string, aliases: string[] = []): string | nul
   const firstSegment = specifier.split('/')[0]!;
   if (NODE_BUILTINS.has(firstSegment)) return null;
   return firstSegment;
+}
+
+function getDefinitelyTypedPackageName(packageName: string): string {
+  if (packageName.startsWith('@')) {
+    const [scope, name] = packageName.slice(1).split('/');
+    return `@types/${scope}__${name}`;
+  }
+  return `@types/${packageName}`;
+}
+
+function isWorkspaceToolingPath(relPath: string): boolean {
+  const normalized = normalizePath(relPath);
+  const segments = normalized.split('/');
+  return segments.slice(0, -1).includes('scripts');
 }
 
 function isSameOrDescendant(childDir: string, parentDir: string): boolean {
@@ -243,6 +258,12 @@ export async function detectDependencyFindings(
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
   const rootPkg = await readPackageJson(targetDir);
+  const rootDeclaredDeps = new Set<string>([
+    ...Object.keys(rootPkg?.dependencies ?? {}),
+    ...Object.keys(rootPkg?.devDependencies ?? {}),
+    ...Object.keys(rootPkg?.peerDependencies ?? {}),
+    ...Object.keys(rootPkg?.optionalDependencies ?? {}),
+  ]);
 
   // ── 1. Duplicate dependency declarations in root manifest ──
   if (rootPkg) {
@@ -310,10 +331,18 @@ export async function detectDependencyFindings(
     for (const reference of collectModuleSpecifiers(sourceFile)) {
       const pkgName = getPackageName(reference.value.replace(/[?#].*$/, ''), manifestData.aliases);
       const dedupeKey = `${manifestData.manifestPath}:${pkgName}`;
+      const hasTypeDeclaration = Boolean(
+        pkgName && reference.isTypeOnly && manifestData.declaredDeps.has(getDefinitelyTypedPackageName(pkgName))
+      );
+      const hasWorkspaceToolingDependency = Boolean(
+        pkgName && isWorkspaceToolingPath(relPath) && rootDeclaredDeps.has(pkgName)
+      );
       if (
         pkgName &&
         pkgName !== manifestData.packageName &&
         !manifestData.declaredDeps.has(pkgName) &&
+        !hasTypeDeclaration &&
+        !hasWorkspaceToolingDependency &&
         !reportedMissing.has(dedupeKey)
       ) {
           reportedMissing.add(dedupeKey);

@@ -35,6 +35,7 @@ export const NESTED_NON_PRODUCTION_DIRS = new Set<string>([
   'fixtures',
   '__fixtures__',
   'examples',
+  'playground',
   'samples',
   'mocks',
   '__mocks__',
@@ -112,6 +113,10 @@ export function isTestFile(relPath: string): boolean {
   }
 
   if (/\.(test|spec)\.[a-zA-Z0-9]+$/.test(fileName)) {
+    return true;
+  }
+
+  if (/^(vitest|jest|playwright)\.config\.[a-zA-Z0-9]+$/.test(fileName)) {
     return true;
   }
 
