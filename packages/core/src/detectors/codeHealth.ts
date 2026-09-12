@@ -8,6 +8,7 @@ import {
   isNestedNonProductionPath,
   isTestOrDocFile,
 } from '../analysis/exclusionPolicy.js';
+import { collectModuleSpecifiers, parseSourceFile } from '../analysis/moduleSpecifiers.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,26 +21,6 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-function getScriptKind(filePath: string): ts.ScriptKind {
-  const ext = path.extname(filePath).toLowerCase();
-  switch (ext) {
-    case '.ts':
-    case '.mts':
-      return ts.ScriptKind.TS;
-    case '.tsx':
-      return ts.ScriptKind.TSX;
-    case '.js':
-    case '.mjs':
-    case '.cjs':
-      return ts.ScriptKind.JS;
-    case '.jsx':
-      return ts.ScriptKind.JSX;
-    default:
-      return ts.ScriptKind.Unknown;
-  }
-}
-
-
 const JS_TS_EXTENSIONS = new Set([
   '.ts',
   '.tsx',
@@ -48,6 +29,7 @@ const JS_TS_EXTENSIONS = new Set([
   '.mts',
   '.mjs',
   '.cjs',
+  '.cts',
 ]);
 
 const IMPORT_CANDIDATE_SUFFIXES = [
@@ -69,7 +51,6 @@ const IMPORT_CANDIDATE_SUFFIXES = [
 ];
 
 const LOCALHOST_REGEX = /\b(https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s'"`)]*)?)/gi;
-const IMPORT_REGEX = /(?:import\s+(?:[\w*\s{},]*from\s+)?|export\s+(?:[\w*\s{},]*from\s+)?|require\s*\(\s*)['"](\.[^'"]+)['"]/g;
 const MARKER_REGEX = /\b(TODO|FIXME|HACK)\b/g;
 
 // ─── Detector ─────────────────────────────────────────────────────────────────
@@ -122,13 +103,7 @@ export async function detectCodeHealthFindings(
     }
 
     // ── 2. Syntax / Parse errors (safe static parse via TypeScript compiler API) ──
-    const sf = ts.createSourceFile(
-      filePath,
-      content,
-      ts.ScriptTarget.Latest,
-      true,
-      getScriptKind(filePath),
-    );
+    const sf = parseSourceFile(filePath, content);
     const parseDiags =
       (sf as unknown as { parseDiagnostics?: ts.Diagnostic[] }).parseDiagnostics ??
       (ts as unknown as { getParseDiagnostics?: (s: ts.SourceFile) => ts.Diagnostic[] }).getParseDiagnostics?.(sf) ??
@@ -190,58 +165,6 @@ export async function detectCodeHealthFindings(
         }
       }
 
-      // ── Unresolved local relative imports ──
-      if (!isTest) {
-        IMPORT_REGEX.lastIndex = 0;
-        let importMatch: RegExpExecArray | null;
-        while ((importMatch = IMPORT_REGEX.exec(line)) !== null) {
-          const specifier = importMatch[1]!;
-          if (specifier.startsWith('.')) {
-            const baseDir = path.dirname(filePath);
-            const targetBase = path.resolve(baseDir, specifier);
-            let resolved = false;
-
-            const candidates: string[] = IMPORT_CANDIDATE_SUFFIXES.map((s) => path.normalize(targetBase + s));
-            if (specifier.endsWith('.js')) {
-              const baseWithoutExt = targetBase.slice(0, -3);
-              candidates.push(
-                path.normalize(baseWithoutExt + '.ts'),
-                path.normalize(baseWithoutExt + '.tsx'),
-                path.normalize(baseWithoutExt + '.mts'),
-              );
-            } else if (specifier.endsWith('.mjs')) {
-              const baseWithoutExt = targetBase.slice(0, -4);
-              candidates.push(path.normalize(baseWithoutExt + '.mts'));
-            }
-
-            for (const candidate of candidates) {
-              if (await fileExists(candidate)) {
-                resolved = true;
-                break;
-              }
-            }
-
-            if (!resolved) {
-              findings.push({
-                code: 'UNRESOLVED_LOCAL_IMPORT',
-                category: 'code-health',
-                severity: 'high',
-                confidence: 'high',
-                title: `Unresolved local import in ${relPath}:${lineNum}`,
-                summary: `Cannot find module "${specifier}" referenced from ${relPath}.`,
-                file: relPath,
-                line: lineNum,
-                evidence: `Unresolved import: ${specifier}`,
-                whyItMatters:
-                  'Broken relative imports prevent bundlers from completing the build and will crash during build or runtime.',
-                remediation: `Verify the relative path "${specifier}" exists or update the import target.`,
-                deploymentImpact: 'blocking',
-              });
-            }
-          }
-        }
-      }
-
       // ── Unfinished code markers (TODO/FIXME/HACK) ──
       if (!isTest) {
         MARKER_REGEX.lastIndex = 0;
@@ -249,6 +172,58 @@ export async function detectCodeHealthFindings(
         if (matches) {
           totalMarkers += matches.length;
           markerFiles.add(relPath);
+        }
+      }
+    }
+
+    // ── Unresolved local relative imports ──
+    if (!isTest) {
+      for (const reference of collectModuleSpecifiers(sf)) {
+        const specifier = reference.value;
+        if (!specifier.startsWith('.')) continue;
+
+        const cleanSpecifier = specifier.replace(/[?#].*$/, '');
+        const targetBase = path.resolve(path.dirname(filePath), cleanSpecifier);
+        const candidates = IMPORT_CANDIDATE_SUFFIXES.map((suffix) =>
+          path.normalize(targetBase + suffix),
+        );
+        const explicitExtension = path.extname(targetBase).toLowerCase();
+        const extensionFallbacks: Record<string, string[]> = {
+          '.js': ['.ts', '.tsx', '.mts'],
+          '.jsx': ['.tsx', '.ts'],
+          '.mjs': ['.mts'],
+          '.cjs': ['.cts'],
+        };
+        const fallbacks = extensionFallbacks[explicitExtension] ?? [];
+        if (fallbacks.length > 0) {
+          const baseWithoutExtension = targetBase.slice(0, -explicitExtension.length);
+          candidates.push(...fallbacks.map((ext) => path.normalize(baseWithoutExtension + ext)));
+        }
+
+        let resolved = false;
+        for (const candidate of candidates) {
+          if (await fileExists(candidate)) {
+            resolved = true;
+            break;
+          }
+        }
+
+        if (!resolved) {
+          findings.push({
+            code: 'UNRESOLVED_LOCAL_IMPORT',
+            category: 'code-health',
+            severity: 'high',
+            confidence: 'high',
+            title: `Unresolved local import in ${relPath}:${reference.line}`,
+            summary: `Cannot find module "${specifier}" referenced from ${relPath}.`,
+            file: relPath,
+            line: reference.line,
+            evidence: `Unresolved import: ${specifier}`,
+            whyItMatters:
+              'Broken relative imports prevent bundlers from completing the build and will crash during build or runtime.',
+            remediation: `Verify the relative path "${specifier}" exists or update the import target.`,
+            deploymentImpact: 'blocking',
+          });
         }
       }
     }

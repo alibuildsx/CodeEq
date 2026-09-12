@@ -48,6 +48,37 @@ describe('detectDependencyFindings', () => {
     expect(undeclared[0]?.file).toBe('src/app.ts');
   });
 
+  it('ignores dependency-looking text inside string and template literals', async () => {
+    await write('package.json', JSON.stringify({ name: 'transformer' }));
+    await write(
+      'src/index.ts',
+      'const source = `import value from "not-a-dependency"`;\nconst other = "require(\\\"also-not-a-dependency\\\")";',
+    );
+
+    const findings = await detectDependencyFindings(tmpDir);
+
+    expect(findings.filter((f) => f.code === 'UNDECLARED_DEPENDENCY')).toHaveLength(0);
+  });
+
+  it('treats the owning package name as a valid self-reference', async () => {
+    await write('package.json', JSON.stringify({ name: 'self-package', exports: './src/index.js' }));
+    await write('src/feature.js', 'import self from "self-package";');
+
+    const findings = await detectDependencyFindings(tmpDir);
+
+    expect(findings.filter((f) => f.code === 'UNDECLARED_DEPENDENCY')).toHaveLength(0);
+  });
+
+  it('does not diagnose imports in ordinary test directories', async () => {
+    await write('package.json', JSON.stringify({ name: 'tested-package' }));
+    await write('test/integration.js', 'import helper from "test-only-helper";');
+    await write('tests/unit.js', 'require("another-test-helper");');
+
+    const findings = await detectDependencyFindings(tmpDir);
+
+    expect(findings.filter((f) => f.code === 'UNDECLARED_DEPENDENCY')).toHaveLength(0);
+  });
+
   // ─── Workspace Package Behavior ─────────────────────────────────────────────
 
   it('workspace package declared dependency: resolves from owning package manifest, not root', async () => {

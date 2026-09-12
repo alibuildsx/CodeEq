@@ -93,7 +93,11 @@ export async function detectVibeCodeFindings(
   const allFiles = options?.files ?? (await collectScannableFiles(targetDir));
   const sourceFiles = allFiles.filter((f) => JS_TS_EXTENSIONS.has(path.extname(f)));
 
-  const supabaseClientFiles = new Set<string>();
+  const supabaseClientFiles = {
+    generic: new Set<string>(),
+    browser: new Set<string>(),
+    server: new Set<string>(),
+  };
   const apiClientFiles = new Set<string>();
 
   for (const filePath of sourceFiles) {
@@ -118,7 +122,13 @@ export async function detectVibeCodeFindings(
         content.includes('@supabase/ssr') ||
         content.includes('@supabase/auth-helpers-nextjs')
       ) {
-        supabaseClientFiles.add(relPath);
+        if (content.includes('createBrowserClient(')) {
+          supabaseClientFiles.browser.add(relPath);
+        } else if (content.includes('createServerClient(')) {
+          supabaseClientFiles.server.add(relPath);
+        } else {
+          supabaseClientFiles.generic.add(relPath);
+        }
       }
     }
 
@@ -172,8 +182,11 @@ export async function detectVibeCodeFindings(
 
 
   // Aggregate Multiple Supabase Clients
-  if (supabaseClientFiles.size >= 2) {
-    const fileList = [...supabaseClientFiles];
+  const duplicateSupabaseClientFiles = Object.values(supabaseClientFiles)
+    .filter((files) => files.size >= 2)
+    .flatMap((files) => [...files]);
+  if (duplicateSupabaseClientFiles.length >= 2) {
+    const fileList = duplicateSupabaseClientFiles;
     findings.push({
       code: 'MULTIPLE_SUPABASE_CLIENTS',
       category: 'code-health',

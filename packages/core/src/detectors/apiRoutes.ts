@@ -8,10 +8,10 @@ interface RouteRoot {
 }
 
 const ROUTE_ROOTS: RouteRoot[] = [
-  { relativePath: 'app/api', matches: (name) => name === 'route.ts' || name === 'route.tsx' },
-  { relativePath: 'src/app/api', matches: (name) => name === 'route.ts' || name === 'route.tsx' },
-  { relativePath: 'pages/api', matches: (name) => name.endsWith('.ts') },
-  { relativePath: 'src/pages/api', matches: (name) => name.endsWith('.ts') },
+  { relativePath: 'app/api', matches: (name) => /^route\.(?:[cm]?[jt]sx?)$/.test(name) },
+  { relativePath: 'src/app/api', matches: (name) => /^route\.(?:[cm]?[jt]sx?)$/.test(name) },
+  { relativePath: 'pages/api', matches: (name) => /\.(?:[cm]?[jt]sx?)$/.test(name) },
+  { relativePath: 'src/pages/api', matches: (name) => /\.(?:[cm]?[jt]sx?)$/.test(name) },
 ];
 
 function toPortablePath(filePath: string): string {

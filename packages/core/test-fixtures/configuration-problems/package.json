@@ -5,7 +5,7 @@
   "scripts": {
     "test": "vitest"
   },
-  "dependencies": {
-    "express": "^4.19.0"
+  "devDependencies": {
+    "vite": "^5.0.0"
   }
 }

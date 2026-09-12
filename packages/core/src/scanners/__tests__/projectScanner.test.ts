@@ -93,7 +93,7 @@ describe('scanProject M2 CP2 diagnostic engine', () => {
       packageManager: 'pnpm',
       router: 'app',
       database: 'supabase',
-      authProvider: 'supabase',
+      authProvider: 'none',
       deploymentProvider: 'none',
       testingFrameworks: ['vitest'],
       sourceFileCount: 3, // next.config.ts + route.ts + page.tsx
@@ -112,7 +112,7 @@ describe('scanProject M2 CP2 diagnostic engine', () => {
   it('blocks readiness when a blocking finding like MISSING_BUILD_SCRIPT is present', async () => {
     await write('package.json', JSON.stringify({
       name: 'no-build-app',
-      dependencies: { react: '^18.0.0' },
+      devDependencies: { vite: '^5.0.0' },
       scripts: {},
     }));
     await write('src/index.js', 'console.log("ready")');
@@ -207,5 +207,17 @@ describe('scanProject M2 CP2 diagnostic engine', () => {
     expect(result.findings).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'MISSING_START_SCRIPT' }),
     ]));
+  });
+
+  it('detects TypeScript from nested source files without a root tsconfig or TypeScript dependency', async () => {
+    await write('package.json', JSON.stringify({
+      name: 'nested-typescript',
+      scripts: { build: 'custom-build' },
+    }));
+    await write('packages/feature/src/deep/module.tsx', 'export function Feature() { return null; }');
+
+    const result = await scanProject(tmpDir);
+
+    expect(result.projectInfo.language).toBe('typescript');
   });
 });

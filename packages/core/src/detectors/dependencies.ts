@@ -8,6 +8,7 @@ import {
   isNestedNonProductionPath,
   isTestOrDocFile,
 } from '../analysis/exclusionPolicy.js';
+import { collectModuleSpecifiers, parseSourceFile } from '../analysis/moduleSpecifiers.js';
 
 // ─── Node.js Built-ins ────────────────────────────────────────────────────────
 
@@ -64,9 +65,8 @@ const JS_TS_EXTENSIONS = new Set([
   '.mts',
   '.mjs',
   '.cjs',
+  '.cts',
 ]);
-
-const IMPORT_REQUIRE_REGEX = /(?:import\s+(?:[\w*\s{},]*from\s+)?|export\s+(?:[\w*\s{},]*from\s+)?|require\s*\(\s*)['"]([^'"]+)['"]/g;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -126,6 +126,7 @@ export interface ManifestData {
   manifestDir: string;
   declaredDeps: Set<string>;
   aliases: string[];
+  packageName?: string;
 }
 
 /**
@@ -224,6 +225,7 @@ export async function getManifestData(
     manifestDir,
     declaredDeps,
     aliases: Array.from(aliases),
+    packageName: pkg.name,
   };
 
   manifestCache.set(manifestPath, data);
@@ -302,18 +304,16 @@ export async function detectDependencyFindings(
       continue;
     }
 
-    const lines = content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]!;
-      const lineNum = i + 1;
-
-      IMPORT_REQUIRE_REGEX.lastIndex = 0;
-      let match: RegExpExecArray | null;
-      while ((match = IMPORT_REQUIRE_REGEX.exec(line)) !== null) {
-        const specifier = match[1]!;
-        const pkgName = getPackageName(specifier, manifestData.aliases);
-        const dedupeKey = `${manifestData.manifestPath}:${pkgName}`;
-        if (pkgName && !manifestData.declaredDeps.has(pkgName) && !reportedMissing.has(dedupeKey)) {
+    const sourceFile = parseSourceFile(filePath, content);
+    for (const reference of collectModuleSpecifiers(sourceFile)) {
+      const pkgName = getPackageName(reference.value.replace(/[?#].*$/, ''), manifestData.aliases);
+      const dedupeKey = `${manifestData.manifestPath}:${pkgName}`;
+      if (
+        pkgName &&
+        pkgName !== manifestData.packageName &&
+        !manifestData.declaredDeps.has(pkgName) &&
+        !reportedMissing.has(dedupeKey)
+      ) {
           reportedMissing.add(dedupeKey);
           findings.push({
             code: 'UNDECLARED_DEPENDENCY',
@@ -323,14 +323,13 @@ export async function detectDependencyFindings(
             title: `Undeclared external package imported: "${pkgName}"`,
             summary: `Module "${pkgName}" is imported in ${relPath} but not listed in package.json dependencies.`,
             file: relPath,
-            line: lineNum,
+            line: reference.line,
             evidence: `Imported "${pkgName}" is absent from package.json dependencies`,
             whyItMatters:
               'Undeclared dependencies work locally only if cached in node_modules, but will fail with ModuleNotFoundError in clean CI and production environments.',
             remediation: `Add "${pkgName}" to your package.json dependencies using your package manager.`,
             deploymentImpact: 'blocking',
           });
-        }
       }
     }
   }

@@ -73,6 +73,39 @@ describe('detectCodeHealthFindings', () => {
       const findings = await detectCodeHealthFindings(tmpDir);
       expect(findings.find((f) => f.code === 'UNRESOLVED_LOCAL_IMPORT')).toBeUndefined();
     });
+
+    it('resolves resource-query imports and JSX specifiers backed by TSX', async () => {
+      await write(
+        'src/app.tsx',
+        'import Worker from "./worker.ts?worker&inline";\nimport View from "./View.jsx";',
+      );
+      await write('src/worker.ts', 'export default class Worker {}');
+      await write('src/View.tsx', 'export default function View() { return null; }');
+
+      const findings = await detectCodeHealthFindings(tmpDir);
+
+      expect(findings.find((f) => f.code === 'UNRESOLVED_LOCAL_IMPORT')).toBeUndefined();
+    });
+
+    it('ignores import-looking text inside string and template literals', async () => {
+      await write(
+        'src/transformer.ts',
+        'const fixture = `import "./not-a-real-module"`;\nconst snippet = "require(\\\"./also-not-real\\\")";',
+      );
+
+      const findings = await detectCodeHealthFindings(tmpDir);
+
+      expect(findings.find((f) => f.code === 'UNRESOLVED_LOCAL_IMPORT')).toBeUndefined();
+    });
+
+    it('does not report unresolved imports from ordinary test directories', async () => {
+      await write('test/integration.js', 'import missing from "./test-only-fixture.js";');
+      await write('tests/unit.js', 'require("./missing-test-helper.js");');
+
+      const findings = await detectCodeHealthFindings(tmpDir);
+
+      expect(findings.find((f) => f.code === 'UNRESOLVED_LOCAL_IMPORT')).toBeUndefined();
+    });
   });
 
   describe('HARDCODED_LOCALHOST_URL', () => {
@@ -128,6 +161,15 @@ describe('detectCodeHealthFindings', () => {
       expect(finding?.category).toBe('code-health');
       expect(finding?.severity).toBe('low');
       expect(finding?.file).toBe('src/hugeComponent.tsx');
+    });
+
+    it('does not flag large files in ordinary test directories', async () => {
+      const longContent = Array.from({ length: 650 }, (_, i) => `const line${i} = ${i};`).join('\n');
+      await write('test/large-suite.js', longContent);
+
+      const findings = await detectCodeHealthFindings(tmpDir);
+
+      expect(findings.find((f) => f.code === 'VERY_LARGE_SOURCE_FILE')).toBeUndefined();
     });
   });
 });

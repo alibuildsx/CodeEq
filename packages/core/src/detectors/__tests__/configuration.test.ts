@@ -108,4 +108,17 @@ describe('detectConfigurationFindings', () => {
     const buildFinding = findings.find((f) => f.code === 'MISSING_BUILD_SCRIPT');
     expect(buildFinding?.deploymentImpact).toBe('blocking');
   });
+
+  it('does not require a build script for a source-shipping JavaScript library', async () => {
+    await write('package.json', JSON.stringify({
+      name: 'source-library',
+      type: 'module',
+      exports: './index.js',
+    }));
+    await write('index.js', 'export const value = 42;');
+
+    const findings = await detectConfigurationFindings(tmpDir);
+
+    expect(findings.find((f) => f.code === 'MISSING_BUILD_SCRIPT')).toBeUndefined();
+  });
 });

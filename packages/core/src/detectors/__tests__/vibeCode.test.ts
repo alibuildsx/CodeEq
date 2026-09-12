@@ -83,6 +83,19 @@ describe('detectVibeCodeFindings', () => {
       const findings = await detectVibeCodeFindings(tmpDir);
       expect(findings.find((f) => f.code === 'MULTIPLE_SUPABASE_CLIENTS')).toBeUndefined();
     });
+
+    it('does not flag the standard separate browser and server SSR clients', async () => {
+      await write('package.json', JSON.stringify({
+        name: 'supabase-ssr-app',
+        dependencies: { '@supabase/ssr': '^0.6.0' },
+      }));
+      await write('lib/supabase/browser.ts', 'import { createBrowserClient } from "@supabase/ssr";\nexport const client = createBrowserClient("url", "key");');
+      await write('lib/supabase/server.ts', 'import { createServerClient } from "@supabase/ssr";\nexport const client = createServerClient("url", "key", { cookies: {} });');
+
+      const findings = await detectVibeCodeFindings(tmpDir);
+
+      expect(findings.find((f) => f.code === 'MULTIPLE_SUPABASE_CLIENTS')).toBeUndefined();
+    });
   });
 
   describe('MULTIPLE_API_CLIENTS', () => {

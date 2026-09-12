@@ -179,6 +179,9 @@ describe('Central Exclusion Policy', () => {
   describe('isTestOrDocFile', () => {
     it('returns true for both test and doc files, false for normal source', () => {
       expect(isTestOrDocFile('src/__tests__/app.test.ts')).toBe(true);
+      expect(isTestOrDocFile('test/integration.js')).toBe(true);
+      expect(isTestOrDocFile('tests/unit/helper.ts')).toBe(true);
+      expect(isTestOrDocFile('test\\windows-case.js')).toBe(true);
       expect(isTestOrDocFile('README.md')).toBe(true);
       expect(isTestOrDocFile('src/app.ts')).toBe(false);
     });

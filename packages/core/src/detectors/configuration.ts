@@ -234,7 +234,12 @@ export async function detectConfigurationFindings(
   }
 
   // ── 6. Build and start scripts ──
-  if (pkg && !scripts['build']) {
+  const frameworkResult = options?.framework
+    ? { framework: options.framework }
+    : await detectFramework(targetDir, deps);
+  const framework = frameworkResult.framework;
+
+  if (pkg && (framework === 'nextjs' || framework === 'vite') && !scripts['build']) {
     findings.push({
       code: 'MISSING_BUILD_SCRIPT',
       category: 'deployment',
@@ -250,11 +255,6 @@ export async function detectConfigurationFindings(
       deploymentImpact: 'blocking',
     });
   }
-
-  const frameworkResult = options?.framework
-    ? { framework: options.framework }
-    : await detectFramework(targetDir, deps);
-  const framework = frameworkResult.framework;
 
   if (pkg && (framework === 'nextjs' || framework === 'express') && !scripts['start']) {
     findings.push({

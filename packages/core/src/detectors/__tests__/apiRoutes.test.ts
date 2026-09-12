@@ -21,7 +21,7 @@ describe('detectApiRoutes', () => {
     await fs.writeFile(filePath, 'export {};', 'utf-8');
   }
 
-  it('finds supported App Router and Pages Router TypeScript API routes', async () => {
+  it('finds supported App Router and Pages Router JavaScript and TypeScript API routes', async () => {
     await Promise.all([
       create('app/api/health/route.ts'),
       create('app/api/users/[id]/route.tsx'),
@@ -29,17 +29,20 @@ describe('detectApiRoutes', () => {
       create('src/app/api/upload/route.tsx'),
       create('pages/api/index.ts'),
       create('src/pages/api/users/[id].ts'),
-      create('app/api/ignored/route.js'),
+      create('app/api/javascript/route.js'),
+      create('src/pages/api/legacy.js'),
       create('app/not-api/route.ts'),
       create('pages/not-api.ts'),
     ]);
 
     await expect(detectApiRoutes(tmpDir)).resolves.toEqual([
       'app/api/health/route.ts',
+      'app/api/javascript/route.js',
       'app/api/users/[id]/route.tsx',
       'pages/api/index.ts',
       'src/app/api/session/route.ts',
       'src/app/api/upload/route.tsx',
+      'src/pages/api/legacy.js',
       'src/pages/api/users/[id].ts',
     ]);
   });

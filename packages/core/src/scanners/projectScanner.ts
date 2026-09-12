@@ -24,7 +24,11 @@ import type { Finding, Language, ProjectInfo, ScanResult } from '../types/index.
 
 // ─── Language detection ───────────────────────────────────────────────────────
 
-async function detectLanguage(targetDir: string, deps: Record<string, string>): Promise<Language> {
+async function detectLanguage(
+  targetDir: string,
+  deps: Record<string, string>,
+  files: string[],
+): Promise<Language> {
   if (deps['typescript'] || deps['@types/node']) {
     return 'typescript';
   }
@@ -43,6 +47,9 @@ async function detectLanguage(targetDir: string, deps: Record<string, string>): 
     } catch {
       // continue
     }
+  }
+  if (files.some((file) => ['.ts', '.tsx', '.mts', '.cts'].includes(path.extname(file).toLowerCase()))) {
+    return 'typescript';
   }
   return 'javascript';
 }
@@ -71,7 +78,7 @@ export async function scanProject(targetDir: string): Promise<ScanResult> {
 
   const [packageManager, language, frameworkResult, envSafety] = await Promise.all([
     detectPackageManager(resolvedDir, pkg?.packageManager),
-    detectLanguage(resolvedDir, deps),
+    detectLanguage(resolvedDir, deps, scannableFiles),
     detectFramework(resolvedDir, deps),
     detectEnvSafety(resolvedDir, {
       hasEnv: presence.hasEnv,

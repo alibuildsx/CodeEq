@@ -96,14 +96,14 @@ describe('Project Intelligence', () => {
       expect(await detectAuthProvider(tmpDir, { '@auth/core': '^0.18.0' }, 'none')).toBe('nextauth');
     });
 
-    it('detects Supabase Auth from helper packages or Supabase database', async () => {
+    it('detects Supabase Auth from explicit auth helper packages, not database usage alone', async () => {
       expect(await detectAuthProvider(tmpDir, { '@supabase/auth-helpers-nextjs': '^0.8.0' }, 'none')).toBe('supabase');
-      expect(await detectAuthProvider(tmpDir, {}, 'supabase')).toBe('supabase');
+      expect(await detectAuthProvider(tmpDir, { '@supabase/supabase-js': '^2.0.0' }, 'supabase')).toBe('none');
     });
 
-    it('detects Firebase Auth from dependencies', async () => {
+    it('detects Firebase Auth only from the explicit auth package', async () => {
       expect(await detectAuthProvider(tmpDir, { '@firebase/auth': '^1.0.0' }, 'none')).toBe('firebase');
-      expect(await detectAuthProvider(tmpDir, { firebase: '^10.0.0' }, 'firebase')).toBe('firebase');
+      expect(await detectAuthProvider(tmpDir, { firebase: '^10.0.0' }, 'firebase')).toBe('none');
     });
 
     it('returns none when no auth provider is found', async () => {
@@ -196,6 +196,18 @@ describe('Project Intelligence', () => {
 
       const count = await countSourceFiles(tmpDir);
       expect(count).toBe(3);
+    });
+
+    it('does not follow directory symlinks outside the scan root', async () => {
+      const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'codeeq-outside-'));
+      try {
+        await fs.writeFile(path.join(outside, 'outside.ts'), 'export const outside = true;');
+        await fs.symlink(outside, path.join(tmpDir, 'linked'), 'junction');
+
+        expect(await countSourceFiles(tmpDir)).toBe(0);
+      } finally {
+        await fs.rm(outside, { recursive: true, force: true });
+      }
     });
   });
 });

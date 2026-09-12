@@ -100,7 +100,7 @@ export async function detectDatabase(
 export async function detectAuthProvider(
   _targetDir: string,
   deps: Record<string, string>,
-  database: DatabaseProvider,
+  _database: DatabaseProvider,
 ): Promise<AuthProvider> {
   const depNames = Object.keys(deps);
 
@@ -130,15 +130,14 @@ export async function detectAuthProvider(
   if (
     depNames.some((d) => d.includes('auth-helpers')) ||
     depNames.some((d) => d.includes('auth-ui')) ||
-    database === 'supabase'
+    depNames.includes('@supabase/ssr')
   ) {
     return 'supabase';
   }
 
   // Firebase Auth
   if (
-    depNames.includes('@firebase/auth') ||
-    (depNames.includes('firebase') && database === 'firebase')
+    depNames.includes('@firebase/auth')
   ) {
     return 'firebase';
   }
@@ -244,6 +243,7 @@ const SOURCE_EXTENSIONS = new Set([
   '.mts',
   '.mjs',
   '.cjs',
+  '.cts',
 ]);
 
 const EXCLUDED_SUFFIXES = ['.d.ts', '.d.ts.map', '.js.map'];
@@ -262,12 +262,14 @@ export async function countSourceFiles(targetDir: string): Promise<number> {
     await Promise.all(
       names.map(async (name) => {
         const fullPath = path.join(current, name);
-        let stat: Awaited<ReturnType<typeof fs.stat>>;
+        let stat: Awaited<ReturnType<typeof fs.lstat>>;
         try {
-          stat = await fs.stat(fullPath);
+          stat = await fs.lstat(fullPath);
         } catch {
           return;
         }
+
+        if (stat.isSymbolicLink()) return;
 
         if (stat.isDirectory()) {
           if (!shouldSkipDirectory(name)) {

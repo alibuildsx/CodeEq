@@ -16,6 +16,7 @@ const SCANNABLE_EXTENSIONS = new Set([
   '.mts',
   '.mjs',
   '.cjs',
+  '.cts',
   '.json',
   '.pem',
   '.key',
@@ -88,12 +89,14 @@ async function collectScannableFiles(dir: string): Promise<string[]> {
     await Promise.all(
       names.map(async (name) => {
         const fullPath = path.join(current, name);
-        let stat: Awaited<ReturnType<typeof fs.stat>>;
+        let stat: Awaited<ReturnType<typeof fs.lstat>>;
         try {
-          stat = await fs.stat(fullPath);
+          stat = await fs.lstat(fullPath);
         } catch {
           return; // broken symlink or race condition — skip
         }
+
+        if (stat.isSymbolicLink()) return;
 
         if (stat.isDirectory()) {
           if (!shouldSkipDirectory(name)) {

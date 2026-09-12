@@ -97,10 +97,9 @@ export function isNestedNonProductionPath(relPath: string, isDirectory = false):
 }
 
 /**
- * Returns true if the relative path represents a test file (inside `__tests__` or matching `*.(test|spec).*`).
- *
- * Note: This does NOT treat every directory named `test` as an excluded directory from traversal.
- * It identifies test files where detector-specific rules may differ.
+ * Returns true if the relative path represents a test file (inside `test`, `tests`,
+ * or `__tests__`, or matching `*.(test|spec).*`). Test directories remain traversable
+ * so source-file counts stay representative; detector-specific diagnostics skip them.
  */
 export function isTestFile(relPath: string): boolean {
   const normalized = normalizePath(relPath);
@@ -108,7 +107,7 @@ export function isTestFile(relPath: string): boolean {
   const segments = normalized.split('/');
   const dirSegments = segments.slice(0, -1);
 
-  if (dirSegments.some((seg) => seg === '__tests__')) {
+  if (dirSegments.some((seg) => seg === '__tests__' || seg === 'test' || seg === 'tests')) {
     return true;
   }
 
