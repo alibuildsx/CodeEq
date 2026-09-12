@@ -9,4 +9,13 @@ describe('@codeeq/core package exports', () => {
 
     expect(packageJson.exports?.['.']?.require).toBe('./dist/index.js');
   });
+
+  it('declares TypeScript as a runtime dependency because detectors import it', async () => {
+    const packageJson = JSON.parse(
+      await fs.readFile(new URL('../../package.json', import.meta.url), 'utf-8'),
+    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+
+    expect(packageJson.dependencies?.typescript).toBeDefined();
+    expect(packageJson.devDependencies?.typescript).toBeUndefined();
+  });
 });
