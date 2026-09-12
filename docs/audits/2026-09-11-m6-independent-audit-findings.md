@@ -1,8 +1,8 @@
 # CodeEq M6 Independent Audit Findings
 
-Audit date: 2026-09-11  
-Auditor: Codex, independent from the implementation agent  
-Base: `feat/m5-portfolio-release` at `b838af2b35dd783d51dd308985b8836dd374f47b`  
+Audit date: 2026-09-11
+Auditor: Codex, independent from the implementation agent
+Base: `feat/m5-portfolio-release` at `b838af2b35dd783d51dd308985b8836dd374f47b`
 Audit branch: `audit/m6-codex-final`
 
 ## Baseline
