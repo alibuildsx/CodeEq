@@ -24,7 +24,7 @@ CodeEq 1.0.0 is the complete, portfolio-grade release of the static project heal
   3. *Code Health*: Unresolved relative imports, missing source files, unparseable syntax errors.
   4. *Dependencies*: Undeclared imports, monorepo workspace package boundary violations, missing peer dependencies.
   5. *Vibe-Code Heuristics*: Unfinished code markers (`TODO`, `FIXME`, `HACK`), hardcoded localhost URLs, duplicate files.
-* **Health Scoring & Deployment Readiness**: Deterministic deduction scoring (0–100) across overall and 5 categories, outputting unequivocal readiness indicators (`Ready`, `Needs attention`, `Blocked`).
+* **Health Scoring & Deployment Readiness**: Deterministic deduction scoring (0–100) across overall and 5 categories, outputting static readiness indicators (`Ready`, `Needs attention`, `Blocked`).
 * **Reporting Pipelines**: Standardized Markdown and machine-readable JSON output generators.
 
 ### Developer CLI (`packages/cli`)
@@ -33,11 +33,11 @@ CodeEq 1.0.0 is the complete, portfolio-grade release of the static project heal
   - `--json`: Outputs machine-readable JSON for CI/CD integration.
   - `--no-write`: Pure terminal summary without modifying target files.
   - `--report [path]`: Custom output destination.
-* POSIX exit codes: `0` for Ready, `1` for Blocked, `2` for Needs attention, `3` for runtime errors.
+* Process exit codes: `0` for Ready or Needs attention; `1` for Blocked or a scan/runtime failure.
 
 ### Portfolio Web Scanner & Dashboard (`apps/web`)
 * **Public GitHub Scanner**: Pure static analysis of public repositories via streaming tarball decompression.
-* **Hardened Ephemeral Sandboxing**: Zero target execution, SSRF-resistant URL parsing, zip-slip protection, 15 MB / 75 MB / 5,000 files quota enforcement, automatic sandbox directory cleanup.
+* **Hardened Ephemeral Sandboxing**: Zero target execution, strict GitHub URL parsing, allowlisted manual redirects, traversal protection, 15 MB / 75 MB / 5,000-file quotas, cooperative cancellation, and automatic sandbox cleanup.
 * **Client Shorthand Normalizer**: Transparently accepts both `owner/repo` and `https://github.com/owner/repo`.
 * **Dark-First Modern Dashboard**:
   - Live animated scanning states and contextual error banners.
@@ -55,21 +55,21 @@ CodeEq 1.0.0 is the complete, portfolio-grade release of the static project heal
 CodeEq 1.0.0 is backed by a comprehensive, fully offline, and deterministic automated test suite:
 
 ```text
-test files: 36
-tests: 285
-passing: 285
+test files: 37
+tests: 319
+passing: 319
 failing: 0
 
-@codeeq/core: 23 test files, 158 passing
+@codeeq/core: 23 test files, 172 passing
 codeeq CLI:    2 test files,   9 passing
-codeeq-web:   11 test files, 118 passing
+codeeq-web:   12 test files, 138 passing
 ```
 
 ### Production Build Verification
 All workspace projects compile cleanly under strict TypeScript and Next.js production bundler:
 * `@codeeq/core`: `tsc -p tsconfig.json` $\rightarrow$ PASS
 * `packages/cli`: `tsc -p tsconfig.json` $\rightarrow$ PASS
-* `apps/web`: `next build` (Next.js 14.2.35) $\rightarrow$ PASS
+* `apps/web`: `next build` (Next.js 15.5.25) $\rightarrow$ PASS
 
 ---
 
@@ -79,6 +79,7 @@ All workspace projects compile cleanly under strict TypeScript and Next.js produ
 * **JavaScript / TypeScript Ecosystem**: Diagnostics are focused on Node.js, Next.js, Vite, and React projects.
 * **Public GitHub Repositories Only**: Web scanner exclusively analyzes public GitHub repositories.
 * **GitHub Rate Limits**: Unauthenticated instances are bounded by GitHub’s public IP rate limits (60 req/hr), expandable to 5,000 req/hr via server-side `GITHUB_TOKEN`.
+* **Cooperative Timeout Boundary**: The 30-second overall timeout aborts active work and waits for temporary cleanup, but same-thread synchronous parsing cannot be hard-preempted without a worker/process boundary.
 
 ---
 

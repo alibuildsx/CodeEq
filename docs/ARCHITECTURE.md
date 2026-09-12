@@ -53,7 +53,7 @@ CodeEq is organized as a pnpm workspace with strict dependency isolation and typ
 ```text
 codeeq/
 ├── packages/
-│   ├── core/                  # @codeeq/core: Pure engine (zero filesystem side-effects)
+│   ├── core/                  # @codeeq/core: Read-only filesystem analysis engine
 │   │   ├── src/
 │   │   │   ├── analysis/      # Category scoring, deduction math, exclusion policies
 │   │   │   ├── detectors/     # Modular static rule detectors (AST & heuristic)
@@ -69,7 +69,7 @@ codeeq/
 ├── apps/
 │   └── web/                   # codeeq-web: Public GitHub Scanner & Dashboard
 │       ├── src/
-│       │   ├── app/           # Next.js 14 App Router (pages & /api/scan route)
+│       │   ├── app/           # Next.js 15 App Router (pages & /api/scan route)
 │       │   ├── components/    # Dark-first modular UI design system
 │       │   └── lib/           # Scanner service, github client, tar extraction, normalizers
 │       └── tsconfig.json
@@ -81,7 +81,7 @@ codeeq/
 ### Boundary Invariants
 * **`@codeeq/core`** has zero network awareness and zero CLI dependencies. It consumes an abstract or local filesystem directory and returns typed `ScanResult` contracts.
 * **`codeeq` (CLI)** consumes `@codeeq/core` as a workspace dependency, manages file writes relative to target projects, and maps diagnostic severity to POSIX exit codes.
-* **`codeeq-web`** consumes `@codeeq/core` exclusively in memory within ephemeral, sandboxed temporary directories, guaranteeing zero leakage of internal server paths.
+* **`codeeq-web`** invokes `@codeeq/core` against ephemeral temporary workspaces, then maps the result through a public DTO sanitizer that strips internal server paths.
 
 ---
 
@@ -92,7 +92,7 @@ The analysis pipeline processes projects through five distinct phases:
 ### Phase 1: Project Intelligence
 Before executing specialized diagnostics, CodeEq inspects package manifests, configuration files, and directory layouts to establish baseline context:
 * **Framework**: Detects Next.js, Vite, React, Express, or Unknown.
-* **Language**: Differentiates TypeScript (`tsconfig.json`) from JavaScript.
+* **Language**: Differentiates TypeScript from JavaScript using configuration and collected source-file signals, including nested source layouts.
 * **Routing Architecture**: Maps Next.js App Router (`app/`), Pages Router (`pages/`), or Hybrid structures.
 * **Package Manager**: Identifies `pnpm`, `npm`, `yarn`, or `bun`.
 * **Ecosystem Signals**: Scans for Supabase, Prisma, Drizzle, Auth providers, and test harnesses.
@@ -141,10 +141,10 @@ export interface Finding {
 CodeEq applies a deterministic deduction algorithm:
 * **Starting Base**: 100 points.
 * **Deductions**:
-  - `Critical`: -30 points
-  - `High`: -20 points
-  - `Medium`: -10 points
-  - `Low`: -5 points
+  - `Critical`: -25 points
+  - `High`: -15 points
+  - `Medium`: -8 points
+  - `Low`: -3 points
 * **Floor**: Scores cannot drop below 0.
 * **Category Breakdown**: Computed independently across all 5 categories (`Security`, `Configuration`, `Code Health`, `Dependencies`, `Deployment`).
 
@@ -165,7 +165,7 @@ When invoked via `POST /api/scan`:
    - Max 15 MB compressed archive size.
    - Max 75 MB extracted size.
    - Max 5,000 extracted files.
-   - 60-second timeout guard.
+   - 15-second acquisition timeout and 30-second overall cooperative-cancellation guard.
 4. **Ephemeral Sandbox**: Extracted into an OS temporary directory with random entropy (`codeeq-scan-XXXXXX`).
 5. **Memory-Only Scan**: `@codeeq/core` analyzes the directory without executing any target scripts or installing dependencies.
 6. **Guaranteed Cleanup**: A `finally` block recursively deletes the temporary directory, regardless of whether the scan succeeded, failed, or timed out.

@@ -93,11 +93,11 @@ Every issue detected by CodeEq provides a complete, structured diagnosis:
 
 CodeEq calculates a deterministic health score from **0 to 100**:
 * Every scan starts at **100**.
-* **Deductions**: `Critical`: -30 pts | `High`: -20 pts | `Medium`: -10 pts | `Low`: -5 pts.
+* **Per-category deductions**: `Critical`: -25 pts | `High`: -15 pts | `Medium`: -8 pts | `Low`: -3 pts. The overall score is the weighted result of the five category scores, with additional deployment-impact deductions in the deployment category.
 * Independent scores are calculated across all five categories: **Security**, **Configuration**, **Code Health**, **Dependencies**, and **Deployment**.
 
 ### Static Deployment Readiness
-* 🟢 **Ready**: Zero blocking or risky findings. Safe to proceed with standard build and deployment.
+* 🟢 **Ready**: Zero blocking or risky static findings. Build, test, and runtime verification are still required.
 * 🟡 **Needs attention**: Non-critical warnings (e.g. missing documentation or low-severity debt).
 * 🔴 **Blocked**: One or more critical/high severity findings or deployment-blocking issues exist.
 
@@ -108,7 +108,7 @@ CodeEq calculates a deterministic health score from **0 to 100**:
 The CodeEq web application provides a browser-based repository health dashboard:
 
 1. **Input**: Paste any public GitHub URL (`https://github.com/owner/repo`) or shorthand (`owner/repo`).
-2. **Safe Static Scan**: The server downloads a temporary compressed archive, analyzes the code in a sandboxed directory, and purges all files upon completion.
+2. **Safe Static Scan**: The server downloads a temporary compressed archive, analyzes the code in an isolated temporary workspace, and purges all files upon completion.
 3. **Interactive Results**: Explore overall health, category breakdown, project intelligence grid, interactive severity filters, and slide-over finding drawers.
 
 > [!NOTE]
@@ -153,18 +153,18 @@ node packages/cli/dist/index.js scan .
 
 CodeEq is built as a typed monorepo using modern web technologies:
 
-* **Language**: TypeScript 5.5 (strict mode)
+* **Language**: TypeScript 5.x (strict mode; verified with 5.9.3)
 * **Runtime**: Node.js 18+ (tested through Node.js 24)
 * **Monorepo**: pnpm workspaces
-* **Frontend**: Next.js 14 (App Router), React 18, Vanilla CSS Design System
+* **Frontend**: Next.js 15 (App Router), React 19, Vanilla CSS Design System
 * **CLI Engine**: Commander.js, Chalk-free zero-dependency ANSI styling
 * **Archive Engine**: `tar` (hardened stream extraction)
 * **Test Suite**: Vitest 2.1
 
 ### Workspace Packages
-* [`packages/core`](file:///e:/Dev/CodeEq/packages/core): Pure diagnostic engine, AST parsers, detector registry, scoring algorithms, and report formatters. Zero network or CLI dependencies.
-* [`packages/cli`](file:///e:/Dev/CodeEq/packages/cli): Commander CLI application mapping scanner outputs to terminal displays, Markdown files, JSON streams, and POSIX exit codes.
-* [`apps/web`](file:///e:/Dev/CodeEq/apps/web): Next.js portfolio application featuring the public GitHub repository scanner backend and dark-first diagnostic dashboard.
+* [`packages/core`](packages/core): Pure diagnostic engine, AST parsers, detector registry, scoring algorithms, and report formatters. Zero network or CLI dependencies.
+* [`packages/cli`](packages/cli): Commander CLI application mapping scanner outputs to terminal displays, Markdown files, JSON streams, and POSIX exit codes.
+* [`apps/web`](apps/web): Next.js portfolio application featuring the public GitHub repository scanner backend and dark-first diagnostic dashboard.
 
 ---
 
@@ -173,9 +173,9 @@ CodeEq is built as a typed monorepo using modern web technologies:
 CodeEq is built under a **Zero-Execution, Zero-Trust** model:
 
 * **No Target Code Execution**: Source code is inspected purely via static Abstract Syntax Trees and regular expressions. No scripts, postinstall hooks, or builds are ever executed.
-* **SSRF Mitigation**: Public URL parser strictly accepts `https://github.com/:owner/:repo` and rejects credentials, non-standard ports, IP addresses, and non-GitHub hosts.
-* **Zip-Slip Protection**: Tarball extractor verifies that every extracted entry resolves strictly within the designated sandbox, completely ignoring symlinks and hardlinks.
-* **Resource Quotas**: Hard quotas enforce a maximum 15 MB archive size, 75 MB extracted size, 5,000 files limit, and 60-second execution timeout.
+* **SSRF Mitigation**: Public URL parsing strictly accepts `https://github.com/:owner/:repo`. Server-side requests use manual redirects with a three-hop cap and HTTPS host allowlists for GitHub API and codeload destinations.
+* **Archive Traversal Protection**: The tarball extractor verifies that every accepted entry resolves within the designated workspace and rejects links and special entries.
+* **Resource Quotas**: Hard quotas enforce a maximum 15 MB archive size, 75 MB extracted size, 5,000 files, a 15-second acquisition timeout, and a 30-second overall cooperative-cancellation timeout.
 * **Secret Redaction**: Detected secret keys are redacted at the capture point; raw secret values are never displayed in reports or UI components.
 * **Ephemeral Workspaces**: Scanned repositories are written to temporary OS directories with cryptographically random identifiers and are deleted in `finally` blocks immediately upon scan completion.
 
@@ -188,16 +188,16 @@ CodeEq is built under a **Zero-Execution, Zero-Trust** model:
 CodeEq features an extensive, offline, deterministic test suite:
 
 ```text
-test files: 36
-tests:      285
-passing:    285
+test files: 37
+tests:      319
+passing:    319
 failing:    0
 ```
 
 ### Suite Breakdown
-* **`@codeeq/core`**: 23 test files, 158 tests passing
+* **`@codeeq/core`**: 23 test files, 172 tests passing
 * **`codeeq` (CLI)**: 2 test files, 9 tests passing
-* **`codeeq-web`**: 11 test files, 118 tests passing
+* **`codeeq-web`**: 12 test files, 138 tests passing
 
 Run the complete test suite locally:
 ```bash
@@ -212,6 +212,7 @@ pnpm test
 * **Ecosystem Focus**: Currently tailored for JavaScript and TypeScript ecosystems (Node.js, Next.js, Vite, React, Express).
 * **Public Repositories Only**: The online web scanner exclusively processes public GitHub repositories. Private repositories can be scanned locally using the CLI.
 * **GitHub Rate Limits**: Public unauthenticated web instances share GitHub's 60 req/hr public IP limit (expandable to 5,000 req/hr via server-side `GITHUB_TOKEN`).
+* **Cancellation Boundary**: Timeouts cooperatively abort acquisition, extraction, and scanner traversal and wait for temporary cleanup. A single long synchronous parser operation cannot be hard-preempted without moving analysis to a worker or process.
 
 ---
 
