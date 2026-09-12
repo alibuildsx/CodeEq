@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import type { Finding } from '@codeeq/core';
 import { CategoryHealth } from '../components/CategoryHealth';
 import { CliPromotion } from '../components/CliPromotion';
@@ -60,17 +60,28 @@ export default function CodeEqDashboardPage() {
   const handleRescan = async () => {
     if (!repoUrl || isRescanning) return;
     setIsRescanning(true);
+    setError(null);
+    setSelectedFinding(null);
     try {
       const result = await scanRepository(repoUrl);
       setScanResult(result);
     } catch (err: unknown) {
+      setScanResult(null);
+      setScanStatus('error');
       if (err instanceof FrontendScanError) {
         setError({ code: err.code, message: err.message });
+      } else {
+        setError({
+          code: 'SCAN_FAILED',
+          message: err instanceof Error ? err.message : 'An unexpected error occurred',
+        });
       }
     } finally {
       setIsRescanning(false);
     }
   };
+
+  const closeFindingDrawer = useCallback(() => setSelectedFinding(null), []);
 
   const handleNewScan = () => {
     setScanStatus('idle');
@@ -232,7 +243,7 @@ export default function CodeEqDashboardPage() {
             {/* Detail Drawer (when finding selected) */}
             <FindingDrawer
               finding={selectedFinding}
-              onClose={() => setSelectedFinding(null)}
+              onClose={closeFindingDrawer}
             />
           </div>
         )}

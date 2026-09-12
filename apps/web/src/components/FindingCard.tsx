@@ -54,7 +54,15 @@ export function FindingCard({ finding, isSelected = false, onSelect }: FindingCa
 
   return (
     <article
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(finding)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect(finding);
+        }
+      }}
       style={{
         backgroundColor: isSelected ? 'var(--bg-surface-elevated)' : 'var(--bg-surface)',
         border: `1px solid ${isSelected ? 'var(--border-focus)' : 'var(--border-default)'}`,

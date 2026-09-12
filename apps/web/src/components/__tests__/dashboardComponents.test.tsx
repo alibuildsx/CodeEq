@@ -10,6 +10,7 @@ import { CategoryHealth } from '../CategoryHealth';
 import { EmptyFindingsState } from '../EmptyFindingsState';
 import { FindingCard } from '../FindingCard';
 import { FindingDrawer } from '../FindingDrawer';
+import { FindingsToolbar } from '../FindingsToolbar';
 import { OverallHealth } from '../OverallHealth';
 import { ProjectOverview } from '../ProjectOverview';
 import { RepositoryScanForm } from '../RepositoryScanForm';
@@ -164,6 +165,36 @@ describe('Dashboard Component Rendering', () => {
       expect(html).toContain('.env:1');
       expect(html).toContain('View diagnosis');
     });
+
+    it('exposes keyboard button semantics for the interactive card', () => {
+      const finding = mockNeedsAttentionResult.scan.findings[0];
+      const html = clean(
+        renderToString(<FindingCard finding={finding} onSelect={() => {}} />)
+      );
+
+      expect(html).toContain('role="button"');
+      expect(html).toContain('tabindex="0"');
+    });
+  });
+
+  describe('FindingsToolbar', () => {
+    it('gives the findings search field an accessible name', () => {
+      const html = renderToString(
+        <FindingsToolbar
+          totalCount={1}
+          filteredCount={1}
+          searchQuery=""
+          onSearchChange={() => {}}
+          selectedSeverity={null}
+          onSelectSeverity={() => {}}
+          selectedCategory={null}
+          onSelectCategory={() => {}}
+          onResetFilters={() => {}}
+        />
+      );
+
+      expect(html).toContain('aria-label="Search findings"');
+    });
   });
 
   describe('FindingDrawer', () => {
@@ -219,6 +250,7 @@ describe('Dashboard Component Rendering', () => {
       'GITHUB_RATE_LIMITED',
       'REPOSITORY_TOO_LARGE',
       'ARCHIVE_DOWNLOAD_FAILED',
+      'REQUEST_TOO_LARGE',
       'SCAN_TIMEOUT',
       'SCAN_FAILED',
     ];

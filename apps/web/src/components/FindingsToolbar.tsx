@@ -115,6 +115,7 @@ export function FindingsToolbar({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search findings..."
+            aria-label="Search findings"
             style={{
               background: 'transparent',
               border: 'none',

@@ -22,6 +22,8 @@ export function ScanErrorState({ error, onDismiss }: ScanErrorStateProps) {
         return 'This repository is too large for the online CodeEq scanner. Try a smaller repository or use the local CLI.';
       case 'ARCHIVE_DOWNLOAD_FAILED':
         return 'Failed to download the repository archive from GitHub. Please verify repository availability and try again.';
+      case 'REQUEST_TOO_LARGE':
+        return 'The scan request was too large. Please submit a GitHub repository URL without additional data.';
       case 'SCAN_TIMEOUT':
         return 'The repository scan timed out. The codebase may be too large or complex for the web scanner.';
       case 'SCAN_FAILED':
