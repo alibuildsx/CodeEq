@@ -154,7 +154,7 @@ node packages/cli/dist/index.js scan .
 CodeEq is built as a typed monorepo using modern web technologies:
 
 * **Language**: TypeScript 5.x (strict mode; verified with 5.9.3)
-* **Runtime**: Node.js 18+ (tested through Node.js 24)
+* **Runtime**: Node.js 18.18+ (tested with Node.js 24.18.0)
 * **Monorepo**: pnpm workspaces
 * **Frontend**: Next.js 15 (App Router), React 19, Vanilla CSS Design System
 * **CLI Engine**: Commander.js, Chalk-free zero-dependency ANSI styling
@@ -189,13 +189,13 @@ CodeEq features an extensive, offline, deterministic test suite:
 
 ```text
 test files: 37
-tests:      319
-passing:    319
+tests:      321
+passing:    321
 failing:    0
 ```
 
 ### Suite Breakdown
-* **`@codeeq/core`**: 23 test files, 172 tests passing
+* **`@codeeq/core`**: 23 test files, 174 tests passing
 * **`codeeq` (CLI)**: 2 test files, 9 tests passing
 * **`codeeq-web`**: 12 test files, 138 tests passing
 

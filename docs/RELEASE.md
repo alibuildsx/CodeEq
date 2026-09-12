@@ -56,17 +56,18 @@ CodeEq 1.0.0 is backed by a comprehensive, fully offline, and deterministic auto
 
 ```text
 test files: 37
-tests: 319
-passing: 319
+tests: 321
+passing: 321
 failing: 0
 
-@codeeq/core: 23 test files, 172 passing
+@codeeq/core: 23 test files, 174 passing
 codeeq CLI:    2 test files,   9 passing
 codeeq-web:   12 test files, 138 passing
 ```
 
 ### Production Build Verification
 All workspace projects compile cleanly under strict TypeScript and Next.js production bundler:
+* Runtime floor: Node.js `>=18.18.0` (verified with Node.js 24.18.0)
 * `@codeeq/core`: `tsc -p tsconfig.json` $\rightarrow$ PASS
 * `packages/cli`: `tsc -p tsconfig.json` $\rightarrow$ PASS
 * `apps/web`: `next build` (Next.js 15.5.25) $\rightarrow$ PASS

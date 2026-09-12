@@ -4,7 +4,7 @@
   "private": true,
   "description": "Balance your AI-built code — static project health scanner for AI/vibe-coded applications",
   "engines": {
-    "node": ">=18",
+    "node": ">=18.18.0",
     "pnpm": ">=8"
   },
   "scripts": {
