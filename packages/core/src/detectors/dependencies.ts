@@ -238,6 +238,7 @@ export async function detectDependencyFindings(
   targetDir: string,
   options?: {
     files?: string[];
+    signal?: AbortSignal;
   },
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
@@ -270,7 +271,7 @@ export async function detectDependencyFindings(
   }
 
   // ── 2. Undeclared external dependencies with nearest-manifest ownership ──
-  const allFiles = options?.files ?? (await collectScannableFiles(targetDir));
+  const allFiles = options?.files ?? (await collectScannableFiles(targetDir, { signal: options?.signal }));
   const sourceFiles = allFiles.filter((f) => JS_TS_EXTENSIONS.has(path.extname(f)));
 
   const dirCache = new Map<string, string | null>();
@@ -278,6 +279,7 @@ export async function detectDependencyFindings(
   const reportedMissing = new Set<string>();
 
   for (const filePath of sourceFiles) {
+    options?.signal?.throwIfAborted();
     const relPath = normalizePath(path.relative(targetDir, filePath));
     // Skip nested non-production directories and test/doc files for undeclared imports
     if (isNestedNonProductionPath(relPath) || isTestOrDocFile(relPath)) {

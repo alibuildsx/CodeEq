@@ -59,16 +59,18 @@ export async function detectCodeHealthFindings(
   targetDir: string,
   options?: {
     files?: string[];
+    signal?: AbortSignal;
   },
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
-  const allFiles = options?.files ?? (await collectScannableFiles(targetDir));
+  const allFiles = options?.files ?? (await collectScannableFiles(targetDir, { signal: options?.signal }));
   const sourceFiles = allFiles.filter((f) => JS_TS_EXTENSIONS.has(path.extname(f)));
 
   let totalMarkers = 0;
   const markerFiles = new Set<string>();
 
   for (const filePath of sourceFiles) {
+    options?.signal?.throwIfAborted();
     const relPath = normalizePath(path.relative(targetDir, filePath));
     if (isNestedNonProductionPath(relPath)) {
       continue;

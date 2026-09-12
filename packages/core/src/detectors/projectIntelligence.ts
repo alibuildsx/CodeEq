@@ -248,10 +248,14 @@ const SOURCE_EXTENSIONS = new Set([
 
 const EXCLUDED_SUFFIXES = ['.d.ts', '.d.ts.map', '.js.map'];
 
-export async function countSourceFiles(targetDir: string): Promise<number> {
+export async function countSourceFiles(
+  targetDir: string,
+  options?: { signal?: AbortSignal },
+): Promise<number> {
   let count = 0;
 
   async function walk(current: string): Promise<void> {
+    options?.signal?.throwIfAborted();
     let names: string[];
     try {
       names = await fs.readdir(current);
@@ -261,6 +265,7 @@ export async function countSourceFiles(targetDir: string): Promise<number> {
 
     await Promise.all(
       names.map(async (name) => {
+        options?.signal?.throwIfAborted();
         const fullPath = path.join(current, name);
         let stat: Awaited<ReturnType<typeof fs.lstat>>;
         try {

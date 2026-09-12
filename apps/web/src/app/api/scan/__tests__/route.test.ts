@@ -47,6 +47,21 @@ describe('POST /api/scan route', () => {
     expect(data.error.code).toBe('INVALID_GITHUB_URL');
   });
 
+  it('returns 413 before parsing an oversized JSON request body', async () => {
+    const scanSpy = vi.spyOn(scanService, 'scanGithubRepository');
+    const req = createRequest({
+      repoUrl: 'https://github.com/acme/repo',
+      padding: 'x'.repeat(10_000),
+    });
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(413);
+    expect(data.error.code).toBe('REQUEST_TOO_LARGE');
+    expect(scanSpy).not.toHaveBeenCalled();
+  });
+
   it('returns 400 if repoUrl is missing or not a string', async () => {
     const req1 = createRequest({});
     const res1 = await POST(req1);
@@ -181,5 +196,21 @@ describe('POST /api/scan route', () => {
     expect(data.error.code).toBe('SCAN_FAILED');
     expect(data.error.message).not.toContain('C:\\secret');
     expect(data.stack).toBeUndefined();
+  });
+
+  it('uses a canonical public message for known errors with internal path details', async () => {
+    vi.spyOn(scanService, 'scanGithubRepository').mockRejectedValueOnce(
+      new ScanError('SCAN_FAILED', 'Analysis failed in C:\\Users\\server\\AppData\\Temp\\repo', 500),
+    );
+
+    const res = await POST(createRequest({ repoUrl: 'https://github.com/error/repo' }));
+    const data = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(data.error).toEqual({
+      code: 'SCAN_FAILED',
+      message: 'Repository analysis failed',
+    });
+    expect(JSON.stringify(data)).not.toContain('AppData');
   });
 });

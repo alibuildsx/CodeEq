@@ -29,12 +29,17 @@ export async function scanGithubRepository(
 
   // 2. Initialize GitHub client
   const client = options?.githubClient ?? new GitHubClient(options?.token);
+  const controller = new AbortController();
 
-  // Execute entire acquisition and scan with timeout guarantee
+  // Execute the entire acquisition and scan under one cooperative cancellation signal.
   let timeoutId: NodeJS.Timeout | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new ScanTimeoutError(`Repository scan timed out after ${scanTimeoutMs}ms`));
+      const timeoutError = new ScanTimeoutError(
+        `Repository scan timed out after ${scanTimeoutMs}ms`,
+      );
+      controller.abort(timeoutError);
+      reject(timeoutError);
     }, scanTimeoutMs);
   });
 
@@ -42,6 +47,7 @@ export async function scanGithubRepository(
     // 3. Fetch metadata & verify accessibility
     const metadata = await client.fetchRepoMetadata(identity, {
       token: options?.token,
+      signal: controller.signal,
     });
 
     const canonicalUrl = `https://github.com/${identity.owner}/${identity.repo}`;
@@ -57,6 +63,7 @@ export async function scanGithubRepository(
           token: options?.token,
           maxBytes: options?.maxArchiveBytes,
           timeoutMs: options?.downloadTimeoutMs,
+          signal: controller.signal,
         }
       );
 
@@ -67,14 +74,21 @@ export async function scanGithubRepository(
         {
           maxBytes: options?.maxExtractedBytes,
           maxFiles: options?.maxExtractedFiles,
+          signal: controller.signal,
         }
       );
 
       // Run static analysis with @codeeq/core (NEVER executes repository code)
       let rawResult;
       try {
-        rawResult = await scanProject(extraction.repoRoot);
+        rawResult = await scanProject(extraction.repoRoot, {
+          filesAreTracked: true,
+          signal: controller.signal,
+        });
       } catch (err: unknown) {
+        if (controller.signal.aborted && controller.signal.reason instanceof Error) {
+          throw controller.signal.reason;
+        }
         throw new ScanError(
           'SCAN_FAILED',
           `Analysis failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -98,6 +112,13 @@ export async function scanGithubRepository(
 
   try {
     return await Promise.race([scanPromise, timeoutPromise]);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      // Wait for the losing task to acknowledge cancellation and run workspace cleanup.
+      await scanPromise.catch(() => undefined);
+      if (controller.signal.reason instanceof Error) throw controller.signal.reason;
+    }
+    throw error;
   } finally {
     if (timeoutId) {
       clearTimeout(timeoutId);

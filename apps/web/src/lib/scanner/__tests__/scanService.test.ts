@@ -9,6 +9,7 @@ import {
   RepositoryTooLargeError,
   ScanTimeoutError,
 } from '../../errors';
+import { GitHubClient } from '../../github/githubClient';
 import { scanGithubRepository } from '../scanService';
 
 function createRawTar(
@@ -157,6 +158,31 @@ describe('Scan Service', () => {
     }
   });
 
+  it('reports an env file from a GitHub source archive as tracked', async () => {
+    const tarData = createRawTar([
+      { name: 'acme-env-sha/', type: '5' },
+      { name: 'acme-env-sha/package.json', content: JSON.stringify({ name: 'env-repo' }) },
+      { name: 'acme-env-sha/.gitignore', content: '.env\n' },
+      { name: 'acme-env-sha/.env', content: 'SAFE_TEST_VALUE=synthetic\n' },
+    ]);
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (String(url).includes('/tarball/')) {
+        return new Response(tarData, { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        owner: { login: 'acme' },
+        name: 'env-repo',
+        default_branch: 'main',
+        private: false,
+      }), { status: 200 });
+    });
+
+    const result = await scanGithubRepository('https://github.com/acme/env-repo');
+
+    expect(result.scan.findings.map((finding) => finding.code)).toContain('ENV_FILE_TRACKED');
+  });
+
   it('fails cleanly on non-accessible repository', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response('Not Found', { status: 404 })
@@ -204,5 +230,47 @@ describe('Scan Service', () => {
         scanTimeoutMs: 50,
       })
     ).rejects.toThrow(ScanTimeoutError);
+  });
+
+  it('aborts in-flight work and removes its workspace before returning a timeout', async () => {
+    const before = new Set(
+      fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith('codeeq-scan-')),
+    );
+    let receivedSignal: AbortSignal | undefined;
+    const client = {
+      fetchRepoMetadata: async () => ({
+        owner: 'slow',
+        name: 'slow-repo',
+        defaultBranch: 'main',
+        sizeKb: 1,
+        isPrivate: false,
+      }),
+      downloadRepoArchive: async (
+        _identity: unknown,
+        _ref: string,
+        _dest: string,
+        options?: { signal?: AbortSignal },
+      ) => new Promise<never>((_resolve, reject) => {
+        receivedSignal = options?.signal;
+        options?.signal?.addEventListener('abort', () => reject(options.signal?.reason));
+      }),
+    } as unknown as GitHubClient;
+
+    try {
+      await expect(scanGithubRepository('https://github.com/slow/slow-repo', {
+        scanTimeoutMs: 20,
+        githubClient: client,
+      })).rejects.toThrow(ScanTimeoutError);
+
+      expect(receivedSignal?.aborted).toBe(true);
+      const after = fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith('codeeq-scan-'));
+      expect(after.filter((name) => !before.has(name))).toEqual([]);
+    } finally {
+      for (const name of fs.readdirSync(os.tmpdir())) {
+        if (name.startsWith('codeeq-scan-') && !before.has(name)) {
+          fs.rmSync(path.join(os.tmpdir(), name), { recursive: true, force: true });
+        }
+      }
+    }
   });
 });

@@ -32,6 +32,7 @@ export async function detectVibeCodeFindings(
   targetDir: string,
   options?: {
     files?: string[];
+    signal?: AbortSignal;
   },
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
@@ -90,7 +91,7 @@ export async function detectVibeCodeFindings(
   }
 
   // ── Source files analysis ──
-  const allFiles = options?.files ?? (await collectScannableFiles(targetDir));
+  const allFiles = options?.files ?? (await collectScannableFiles(targetDir, { signal: options?.signal }));
   const sourceFiles = allFiles.filter((f) => JS_TS_EXTENSIONS.has(path.extname(f)));
 
   const supabaseClientFiles = {
@@ -101,6 +102,7 @@ export async function detectVibeCodeFindings(
   const apiClientFiles = new Set<string>();
 
   for (const filePath of sourceFiles) {
+    options?.signal?.throwIfAborted();
     const relPath = normalizePath(path.relative(targetDir, filePath));
     if (isNestedNonProductionPath(relPath) || isTestOrDocFile(relPath)) continue;
 

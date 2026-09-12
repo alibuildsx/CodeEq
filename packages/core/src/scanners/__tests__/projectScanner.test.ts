@@ -220,4 +220,13 @@ describe('scanProject M2 CP2 diagnostic engine', () => {
 
     expect(result.projectInfo.language).toBe('typescript');
   });
+
+  it('stops immediately when the caller signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('audit cancellation'));
+
+    await expect(scanProject(tmpDir, { signal: controller.signal })).rejects.toThrow(
+      'audit cancellation',
+    );
+  });
 });

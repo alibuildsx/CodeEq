@@ -47,6 +47,15 @@ describe('No-Git / Extracted Archive Directory Scanning', () => {
     expect(codes).not.toContain('ENV_FILE_TRACKED');
   });
 
+  it('marks env files as tracked when a trusted source archive contains them', async () => {
+    await write('.env', 'SECRET=synthetic-value');
+    await write('.gitignore', '.env\n');
+
+    const findings = await detectSecurityFindings(tmpDir, { filesAreTracked: true });
+
+    expect(findings.map((finding) => finding.code)).toContain('ENV_FILE_TRACKED');
+  });
+
   it('directory with .git: truthfully detects tracked .env files only when in git index', async () => {
     // If .git folder exists but no commit/ls-files output, does not emit ENV_FILE_TRACKED
     await write('.git/config', '[core]\n');

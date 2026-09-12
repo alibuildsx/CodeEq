@@ -75,10 +75,14 @@ const SKIP_LINE_PREFIXES = [
  * Recursively collects all scannable file paths under `dir`,
  * honouring the exclusion lists.
  */
-async function collectScannableFiles(dir: string): Promise<string[]> {
+async function collectScannableFiles(
+  dir: string,
+  options?: { signal?: AbortSignal },
+): Promise<string[]> {
   const results: string[] = [];
 
   async function walk(current: string): Promise<void> {
+    options?.signal?.throwIfAborted();
     let names: string[];
     try {
       names = await fs.readdir(current);
@@ -88,6 +92,7 @@ async function collectScannableFiles(dir: string): Promise<string[]> {
 
     await Promise.all(
       names.map(async (name) => {
+        options?.signal?.throwIfAborted();
         const fullPath = path.join(current, name);
         let stat: Awaited<ReturnType<typeof fs.lstat>>;
         try {
@@ -141,6 +146,7 @@ export async function detectSupabase(
   deps: Record<string, string>,
   options?: {
     files?: string[];
+    signal?: AbortSignal;
   },
 ): Promise<SupabaseDetectionResult> {
   const depNames = Object.keys(deps);
@@ -148,9 +154,10 @@ export async function detectSupabase(
     depNames.some((d) => d.startsWith('@supabase/')) ||
     depNames.includes('supabase');
 
-  const files = options?.files ?? (await collectScannableFiles(targetDir));
+  const files = options?.files ?? (await collectScannableFiles(targetDir, { signal: options?.signal }));
 
   for (const filePath of files) {
+    options?.signal?.throwIfAborted();
     try {
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n');

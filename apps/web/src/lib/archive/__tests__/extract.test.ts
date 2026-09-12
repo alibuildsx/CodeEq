@@ -136,6 +136,20 @@ describe('extractTarSafely', () => {
     );
   });
 
+  it.each([
+    'C:\\Windows\\system32\\owned.txt',
+    '\\\\server\\share\\owned.txt',
+    'wrapper\\..\\..\\owned.txt',
+  ])('rejects absolute or mixed-separator hostile path %s', async (entryName) => {
+    const tarPath = path.join(tempBase, 'hostile-path.tar');
+    const extractDir = path.join(tempBase, 'dest');
+    fs.writeFileSync(tarPath, createRawTar([{ name: entryName, content: 'owned' }]));
+
+    await expect(extractTarSafely(tarPath, extractDir)).rejects.toThrow(
+      ArchiveDownloadFailedError,
+    );
+  });
+
   it('rejects symlink entries', async () => {
     const tarBuf = createRawTar([
       { name: 'link_to_file', type: '2', linkname: '/etc/passwd' },
@@ -162,6 +176,27 @@ describe('extractTarSafely', () => {
     await expect(extractTarSafely(tarPath, extractDir)).rejects.toThrow(
       ArchiveDownloadFailedError
     );
+  });
+
+  it.each(['3', '4', '6'])('rejects device or FIFO tar entry type %s', async (type) => {
+    const tarPath = path.join(tempBase, `special-${type}.tar`);
+    const extractDir = path.join(tempBase, 'dest');
+    fs.writeFileSync(tarPath, createRawTar([{ name: `special-${type}`, type }]));
+
+    await expect(extractTarSafely(tarPath, extractDir)).rejects.toThrow(
+      ArchiveDownloadFailedError,
+    );
+  });
+
+  it('removes the destination after a malformed archive failure', async () => {
+    const tarPath = path.join(tempBase, 'malformed.tar');
+    const extractDir = path.join(tempBase, 'dest');
+    fs.writeFileSync(tarPath, Buffer.from('not a tar archive'));
+
+    await expect(extractTarSafely(tarPath, extractDir)).rejects.toThrow(
+      ArchiveDownloadFailedError,
+    );
+    expect(fs.existsSync(extractDir)).toBe(false);
   });
 
   it('rejects file bomb exceeding maxFiles limit', async () => {

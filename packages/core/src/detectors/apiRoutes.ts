@@ -18,10 +18,14 @@ function toPortablePath(filePath: string): string {
   return filePath.split(path.sep).join('/');
 }
 
-export async function detectApiRoutes(targetDir: string): Promise<string[]> {
+export async function detectApiRoutes(
+  targetDir: string,
+  options?: { signal?: AbortSignal },
+): Promise<string[]> {
   const routes: string[] = [];
 
   async function walk(currentDir: string, root: RouteRoot): Promise<void> {
+    options?.signal?.throwIfAborted();
     let entries: Dirent[];
     try {
       entries = await fs.readdir(currentDir, { withFileTypes: true });
@@ -30,6 +34,7 @@ export async function detectApiRoutes(targetDir: string): Promise<string[]> {
     }
 
     await Promise.all(entries.map(async (entry) => {
+      options?.signal?.throwIfAborted();
       const entryPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
         await walk(entryPath, root);

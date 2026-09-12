@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ScanError } from '@/lib/errors';
+import {
+  PUBLIC_SCAN_ERROR_MESSAGES,
+  RequestTooLargeError,
+  ScanError,
+} from '@/lib/errors';
 import { scanGithubRepository } from '@/lib/scanner/scanService';
 
 export const runtime = 'nodejs';
@@ -7,6 +11,34 @@ export const dynamic = 'force-dynamic';
 
 interface ScanRequestBody {
   repoUrl?: unknown;
+}
+
+const MAX_REQUEST_BODY_BYTES = 4_096;
+
+async function readBoundedBody(request: NextRequest): Promise<string> {
+  const contentLength = request.headers.get('content-length');
+  if (contentLength && Number(contentLength) > MAX_REQUEST_BODY_BYTES) {
+    throw new RequestTooLargeError();
+  }
+
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let text = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_REQUEST_BODY_BYTES) {
+      await reader.cancel();
+      throw new RequestTooLargeError();
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+
+  return text + decoder.decode();
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -26,8 +58,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   let body: ScanRequestBody;
   try {
-    body = await request.json();
-  } catch {
+    body = JSON.parse(await readBoundedBody(request)) as ScanRequestBody;
+  } catch (error) {
+    if (error instanceof RequestTooLargeError) {
+      return NextResponse.json(
+        { error: { code: error.code, message: PUBLIC_SCAN_ERROR_MESSAGES[error.code] } },
+        { status: error.statusCode },
+      );
+    }
     return NextResponse.json(
       {
         error: {
@@ -88,7 +126,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         {
           error: {
             code: err.code,
-            message: err.message,
+            message: PUBLIC_SCAN_ERROR_MESSAGES[err.code],
           },
         },
         { status: err.statusCode }

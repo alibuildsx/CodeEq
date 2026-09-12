@@ -15,7 +15,17 @@ interface DownloadOptions {
   token?: string;
   maxBytes?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
+
+interface AbortScope {
+  controller: AbortController;
+  dispose: () => void;
+  timedOut: () => boolean;
+}
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 3;
 
 export class GitHubClient {
   private readonly defaultToken?: string;
@@ -24,16 +34,79 @@ export class GitHubClient {
     this.defaultToken = defaultToken || process.env.GITHUB_TOKEN;
   }
 
-  private buildHeaders(token?: string): Record<string, string> {
+  private buildHeaders(destination: URL, token?: string): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github.v3+json',
       'User-Agent': 'CodeEq-Repository-Scanner/1.0',
     };
     const activeToken = token || this.defaultToken;
-    if (activeToken) {
+    if (activeToken && destination.hostname === 'api.github.com') {
       headers.Authorization = `Bearer ${activeToken}`;
     }
     return headers;
+  }
+
+  private createAbortScope(externalSignal: AbortSignal | undefined, timeoutMs: number): AbortScope {
+    const controller = new AbortController();
+    let didTimeout = false;
+    const forwardAbort = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) {
+      forwardAbort();
+    } else {
+      externalSignal?.addEventListener('abort', forwardAbort, { once: true });
+    }
+    const timeoutId = setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+    }, timeoutMs);
+
+    return {
+      controller,
+      timedOut: () => didTimeout,
+      dispose: () => {
+        clearTimeout(timeoutId);
+        externalSignal?.removeEventListener('abort', forwardAbort);
+      },
+    };
+  }
+
+  private abortError(scope: AbortScope, timeoutMessage: string): Error {
+    if (scope.timedOut()) return new ScanTimeoutError(timeoutMessage);
+    const reason = scope.controller.signal.reason;
+    return reason instanceof Error ? reason : new ScanTimeoutError(timeoutMessage);
+  }
+
+  private async fetchWithRedirectPolicy(
+    initialUrl: string,
+    options: {
+      allowedHosts: ReadonlySet<string>;
+      signal: AbortSignal;
+      token?: string;
+      redirectError: () => Error;
+    },
+  ): Promise<Response> {
+    let currentUrl = new URL(initialUrl);
+
+    for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+      if (currentUrl.protocol !== 'https:' || !options.allowedHosts.has(currentUrl.hostname)) {
+        throw options.redirectError();
+      }
+
+      const response = await fetch(currentUrl, {
+        headers: this.buildHeaders(currentUrl, options.token),
+        signal: options.signal,
+        redirect: 'manual',
+      });
+
+      if (!REDIRECT_STATUSES.has(response.status)) return response;
+      if (redirects === MAX_REDIRECTS) throw options.redirectError();
+
+      const location = response.headers.get('location');
+      if (!location) throw options.redirectError();
+      currentUrl = new URL(location, currentUrl);
+    }
+
+    throw options.redirectError();
   }
 
   private checkRateLimit(res: Response): boolean {
@@ -45,28 +118,30 @@ export class GitHubClient {
 
   async fetchRepoMetadata(
     identity: GitHubRepoIdentity,
-    options?: { token?: string; timeoutMs?: number }
+    options?: { token?: string; timeoutMs?: number; signal?: AbortSignal }
   ): Promise<GitHubRepoMetadata> {
     const url = `https://api.github.com/repos/${encodeURIComponent(identity.owner)}/${encodeURIComponent(identity.repo)}`;
     const timeoutMs = options?.timeoutMs ?? 10_000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const abortScope = this.createAbortScope(options?.signal, timeoutMs);
 
     let res: Response;
     try {
-      res = await fetch(url, {
-        headers: this.buildHeaders(options?.token),
-        signal: controller.signal,
+      res = await this.fetchWithRedirectPolicy(url, {
+        allowedHosts: new Set(['api.github.com']),
+        signal: abortScope.controller.signal,
+        token: options?.token,
+        redirectError: () => new RepositoryNotAccessibleError(),
       });
     } catch (err: unknown) {
-      if (controller.signal.aborted) {
-        throw new ScanTimeoutError(`GitHub metadata request timed out after ${timeoutMs}ms`);
+      if (abortScope.controller.signal.aborted) {
+        throw this.abortError(abortScope, `GitHub metadata request timed out after ${timeoutMs}ms`);
       }
+      if (err instanceof RepositoryNotAccessibleError) throw err;
       throw new RepositoryNotAccessibleError(
         `Failed to reach GitHub API: ${err instanceof Error ? err.message : String(err)}`
       );
     } finally {
-      clearTimeout(timeoutId);
+      abortScope.dispose();
     }
 
     if (this.checkRateLimit(res)) {
@@ -117,38 +192,40 @@ export class GitHubClient {
     const maxBytes = options?.maxBytes ?? ARCHIVE_LIMITS.MAX_ARCHIVE_BYTES;
     const timeoutMs = options?.timeoutMs ?? ARCHIVE_LIMITS.DOWNLOAD_TIMEOUT_MS;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const abortScope = this.createAbortScope(options?.signal, timeoutMs);
 
     let res: Response;
     try {
-      res = await fetch(url, {
-        headers: this.buildHeaders(options?.token),
-        signal: controller.signal,
-        redirect: 'follow',
+      res = await this.fetchWithRedirectPolicy(url, {
+        allowedHosts: new Set(['api.github.com', 'codeload.github.com']),
+        signal: abortScope.controller.signal,
+        token: options?.token,
+        redirectError: () => new ArchiveDownloadFailedError('Unsafe GitHub archive redirect'),
       });
     } catch (err: unknown) {
-      clearTimeout(timeoutId);
-      if (controller.signal.aborted) {
-        throw new ScanTimeoutError(`Archive download timed out after ${timeoutMs}ms`);
+      if (abortScope.controller.signal.aborted) {
+        abortScope.dispose();
+        throw this.abortError(abortScope, `Archive download timed out after ${timeoutMs}ms`);
       }
+      abortScope.dispose();
+      if (err instanceof ArchiveDownloadFailedError) throw err;
       throw new ArchiveDownloadFailedError(
         `Network error during archive download: ${err instanceof Error ? err.message : String(err)}`
       );
     }
 
     if (this.checkRateLimit(res)) {
-      clearTimeout(timeoutId);
+      abortScope.dispose();
       throw new GitHubRateLimitedError();
     }
 
     if (res.status === 404 || res.status === 403 || res.status === 401) {
-      clearTimeout(timeoutId);
+      abortScope.dispose();
       throw new RepositoryNotAccessibleError();
     }
 
     if (!res.ok) {
-      clearTimeout(timeoutId);
+      abortScope.dispose();
       throw new ArchiveDownloadFailedError(`GitHub archive download returned status ${res.status}`);
     }
 
@@ -157,7 +234,7 @@ export class GitHubClient {
     if (contentLength) {
       const parsedLength = parseInt(contentLength, 10);
       if (!Number.isNaN(parsedLength) && parsedLength > maxBytes) {
-        clearTimeout(timeoutId);
+        abortScope.dispose();
         throw new RepositoryTooLargeError(
           `Repository archive size (${parsedLength} bytes) exceeds limit of ${maxBytes} bytes`
         );
@@ -165,7 +242,7 @@ export class GitHubClient {
     }
 
     if (!res.body) {
-      clearTimeout(timeoutId);
+      abortScope.dispose();
       throw new ArchiveDownloadFailedError('Empty response body returned for repository archive');
     }
 
@@ -190,7 +267,7 @@ export class GitHubClient {
     const nodeReadable = Readable.fromWeb(res.body as import('node:stream/web').ReadableStream);
 
     try {
-      await pipeline(nodeReadable, counter, fileStream);
+      await pipeline(nodeReadable, counter, fileStream, { signal: abortScope.controller.signal });
       return { bytesDownloaded };
     } catch (err: unknown) {
       // Clean up partial file on failure
@@ -202,8 +279,8 @@ export class GitHubClient {
         // Ignore cleanup error
       }
 
-      if (controller.signal.aborted) {
-        throw new ScanTimeoutError(`Archive download timed out after ${timeoutMs}ms`);
+      if (abortScope.controller.signal.aborted) {
+        throw this.abortError(abortScope, `Archive download timed out after ${timeoutMs}ms`);
       }
       if (err instanceof RepositoryTooLargeError) {
         throw err;
@@ -212,7 +289,7 @@ export class GitHubClient {
         `Failed to stream repository archive: ${err instanceof Error ? err.message : String(err)}`
       );
     } finally {
-      clearTimeout(timeoutId);
+      abortScope.dispose();
     }
   }
 }

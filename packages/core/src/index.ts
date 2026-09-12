@@ -1,6 +1,6 @@
 // Public API for @codeeq/core
 
-export { scanProject } from './scanners/projectScanner.js';
+export { scanProject, type ScanProjectOptions } from './scanners/projectScanner.js';
 export { generateMarkdownReport } from './reports/markdownReport.js';
 export {
   calculateDeploymentReadiness,

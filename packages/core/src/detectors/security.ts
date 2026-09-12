@@ -66,10 +66,13 @@ export async function detectSecurityFindings(
   options?: {
     files?: string[];
     deps?: Record<string, string>;
+    filesAreTracked?: boolean;
+    signal?: AbortSignal;
   },
 ): Promise<Finding[]> {
+  options?.signal?.throwIfAborted();
   const findings: Finding[] = [];
-  const files = options?.files ?? (await collectScannableFiles(targetDir));
+  const files = options?.files ?? (await collectScannableFiles(targetDir, { signal: options?.signal }));
   const deps = options?.deps ?? {};
 
   // ── 1. Environment files safety ──
@@ -127,7 +130,11 @@ export async function detectSecurityFindings(
   }
 
   // ── 2. Tracked env files in git ──
-  const trackedEnvFiles = await checkTrackedEnvFiles(targetDir);
+  const trackedEnvFiles = options?.filesAreTracked
+    ? files
+        .map((file) => normalizePath(path.relative(targetDir, file)))
+        .filter((file) => /^\.env(?:\.(?!example$)[^/]+)?$/.test(path.posix.basename(file)))
+    : await checkTrackedEnvFiles(targetDir);
   for (const trackedFile of trackedEnvFiles) {
     const normalizedFile = trackedFile.split(path.sep).join('/');
     findings.push({
@@ -149,7 +156,7 @@ export async function detectSecurityFindings(
 
 
   // ── 3. Supabase service role leak ──
-  const supabaseResult = await detectSupabase(targetDir, deps, { files });
+  const supabaseResult = await detectSupabase(targetDir, deps, { files, signal: options?.signal });
   if (supabaseResult.serviceRoleLeaked) {
     findings.push({
       code: 'SUPABASE_SERVICE_ROLE_LEAKED',
@@ -193,6 +200,7 @@ export async function detectSecurityFindings(
 
   // ── 5. File contents scan for hardcoded tokens & keys ──
   for (const filePath of files) {
+    options?.signal?.throwIfAborted();
     const relPath = normalizePath(path.relative(targetDir, filePath));
     if (isNestedNonProductionPath(relPath) || isTestOrDocFile(relPath)) {
       continue;

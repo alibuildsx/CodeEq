@@ -143,6 +143,22 @@ describe('GitHubClient', () => {
       await client.fetchRepoMetadata({ owner: 'auth', repo: 'repo' });
       expect(capturedAuth).toBe('Bearer test-secret-token');
     });
+
+    it('rejects metadata redirects outside api.github.com', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: 'http://127.0.0.1/latest/meta-data' },
+        }),
+      );
+
+      const client = new GitHubClient('test-secret-token');
+      await expect(client.fetchRepoMetadata({ owner: 'safe', repo: 'repo' })).rejects.toThrow(
+        RepositoryNotAccessibleError,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.mock.calls[0]?.[1]?.redirect).toBe('manual');
+    });
   });
 
   describe('downloadRepoArchive', () => {
@@ -249,6 +265,46 @@ describe('GitHubClient', () => {
       await expect(
         client.downloadRepoArchive({ owner: 'err', repo: 'err' }, 'main', destTar)
       ).rejects.toThrow(ArchiveDownloadFailedError);
+    });
+
+    it('follows only GitHub-controlled archive redirects and strips authorization', async () => {
+      const payload = Buffer.from('archive');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 302,
+            headers: { location: 'https://codeload.github.com/safe/repo/legacy.tar.gz/main' },
+          }),
+        )
+        .mockResolvedValueOnce(new Response(payload, { status: 200 }));
+
+      const destTar = path.join(tempDir, 'redirected.tar.gz');
+      const client = new GitHubClient('test-secret-token');
+      await client.downloadRepoArchive({ owner: 'safe', repo: 'repo' }, 'main', destTar);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const firstHeaders = fetchSpy.mock.calls[0]?.[1]?.headers as Record<string, string>;
+      const secondHeaders = fetchSpy.mock.calls[1]?.[1]?.headers as Record<string, string>;
+      expect(firstHeaders.Authorization).toBe('Bearer test-secret-token');
+      expect(secondHeaders.Authorization).toBeUndefined();
+    });
+
+    it('rejects archive redirects to non-GitHub destinations', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://example.com/archive.tar.gz' },
+        }),
+      );
+
+      const destTar = path.join(tempDir, 'unsafe-redirect.tar.gz');
+      const client = new GitHubClient('test-secret-token');
+      await expect(
+        client.downloadRepoArchive({ owner: 'safe', repo: 'repo' }, 'main', destTar),
+      ).rejects.toThrow(ArchiveDownloadFailedError);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.mock.calls[0]?.[1]?.redirect).toBe('manual');
+      expect(fs.existsSync(destTar)).toBe(false);
     });
   });
 });

@@ -22,6 +22,13 @@ import { detectVibeCodeFindings } from '../detectors/vibeCode.js';
 import { calculateDeploymentReadiness, calculateHealthBreakdown } from '../analysis/projectHealth.js';
 import type { Finding, Language, ProjectInfo, ScanResult } from '../types/index.js';
 
+export interface ScanProjectOptions {
+  /** Treat every file as tracked, for trusted source-control archive snapshots. */
+  filesAreTracked?: boolean;
+  /** Cooperatively stop filesystem traversal and detector work. */
+  signal?: AbortSignal;
+}
+
 // ─── Language detection ───────────────────────────────────────────────────────
 
 async function detectLanguage(
@@ -60,17 +67,22 @@ async function detectLanguage(
  * Scans the project at `targetDir` and returns a complete ScanResult.
  * This is the primary public API of the core package.
  */
-export async function scanProject(targetDir: string): Promise<ScanResult> {
+export async function scanProject(
+  targetDir: string,
+  options?: ScanProjectOptions,
+): Promise<ScanResult> {
+  options?.signal?.throwIfAborted();
   const resolvedDir = path.resolve(targetDir);
 
   // ── Phase 1: gather raw data (parallelised where possible) ──
   const [pkg, presence, apiRoutes, sourceFileCount, scannableFiles] = await Promise.all([
     readPackageJson(resolvedDir),
     detectFilePresence(resolvedDir),
-    detectApiRoutes(resolvedDir),
-    countSourceFiles(resolvedDir),
-    collectScannableFiles(resolvedDir),
+    detectApiRoutes(resolvedDir, { signal: options?.signal }),
+    countSourceFiles(resolvedDir, { signal: options?.signal }),
+    collectScannableFiles(resolvedDir, { signal: options?.signal }),
   ]);
+  options?.signal?.throwIfAborted();
 
   const deps = pkg ? mergeDependencies(pkg) : {};
   const scripts = pkg?.scripts ?? {};
@@ -99,6 +111,7 @@ export async function scanProject(targetDir: string): Promise<ScanResult> {
   ]);
 
   const authProvider = await detectAuthProvider(resolvedDir, deps, database);
+  options?.signal?.throwIfAborted();
 
   // ── Phase 3: build ProjectInfo ──
   const projectInfo: ProjectInfo = {
@@ -136,16 +149,22 @@ export async function scanProject(targetDir: string): Promise<ScanResult> {
     dependencyFindings,
     vibeCodeFindings,
   ] = await Promise.all([
-    detectSecurityFindings(resolvedDir, { files: scannableFiles, deps }),
+    detectSecurityFindings(resolvedDir, {
+      files: scannableFiles,
+      deps,
+      filesAreTracked: options?.filesAreTracked,
+      signal: options?.signal,
+    }),
     detectConfigurationFindings(resolvedDir, {
       framework: frameworkResult.framework,
       presence,
       envSafety,
     }),
-    detectCodeHealthFindings(resolvedDir, { files: scannableFiles }),
-    detectDependencyFindings(resolvedDir, { files: scannableFiles }),
-    detectVibeCodeFindings(resolvedDir, { files: scannableFiles }),
+    detectCodeHealthFindings(resolvedDir, { files: scannableFiles, signal: options?.signal }),
+    detectDependencyFindings(resolvedDir, { files: scannableFiles, signal: options?.signal }),
+    detectVibeCodeFindings(resolvedDir, { files: scannableFiles, signal: options?.signal }),
   ]);
+  options?.signal?.throwIfAborted();
 
   // Combine findings
   const allFindings: Finding[] = [
